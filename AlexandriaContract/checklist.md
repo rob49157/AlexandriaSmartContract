@@ -6,7 +6,7 @@ Everything needed to get the contracts fully functional, in order.
 
 ## Phase 1: Prerequisites & Setup
 
-- [ ] Install OpenZeppelin contracts (`npm install @openzeppelin/contracts`)
+- [x] Install OpenZeppelin contracts (`npm install @openzeppelin/contracts`)
 - [ ] Add Base Testnet network config to `hardhat.config.js` (RPC URL, chain ID 84532)
 - [ ] Create `.env` file with required variables:
   - [ ] `BASE_TESTNET_RPC_URL`
@@ -67,47 +67,66 @@ Everything needed to get the contracts fully functional, in order.
 
 ---
 
-## Phase 3: Token Contract (`token.sol`)
+## Phase 3: Token Contract (`token.sol`) — COMPLETE
 
 ### Implementation
-- [ ] Inherit OpenZeppelin ERC20 (and ERC20Burnable if needed)
-- [ ] Implement constructor with name ("Alexandria"), symbol ("ALEX"), initial supply
-- [ ] Add minting function if mintable (with access control)
-- [ ] Add burning function if burnable
-- [ ] Add any custom approval helpers for staking integration
+- [x] Inherit OpenZeppelin ERC20 and ERC20Burnable
+- [x] Implement constructor with name ("Alexandria"), symbol ("ALEX"), 1B supply
+- [x] No minting function (fixed supply)
+- [x] Burning via ERC20Burnable (burn + burnFrom)
+- [x] Ownable (transferable ownership for future multisig)
+- [x] Pausable (owner can freeze all transfers)
+- [ ] Custom approval helpers for staking integration (deferred — standard approve works)
 
-### Tests (`test/Token.test.js`)
-- [ ] Deploys with correct name, symbol, and total supply
-- [ ] Initial supply minted to deployer/treasury
-- [ ] Transfers work correctly
-- [ ] Approve and transferFrom work correctly
-- [ ] Minting restricted to authorized address (if mintable)
-- [ ] Burning works correctly (if burnable)
+### Tests (`test/Token.test.js`) — 17 passing
+- [x] Deploys with correct name, symbol, and total supply
+- [x] Initial supply minted to deployer
+- [x] Transfers work correctly
+- [x] Transfer fails with insufficient balance
+- [x] Approve and transferFrom work correctly
+- [x] TransferFrom fails without approval
+- [x] Burning works correctly (burn + burnFrom)
+- [x] Burn fails with insufficient balance
+- [x] Pause/unpause blocks and resumes transfers
+- [x] Only owner can pause/unpause
+- [x] Ownership transfer works
+- [x] Non-owner cannot transfer ownership
 
 ---
 
-## Phase 4: Library Contract (`library.sol`)
+## Phase 4: Library Contract (`library.sol`) — COMPLETE
 
 ### Implementation
-- [ ] Define `Upload` struct (arweaveHash, uploader, timestamp, status, metadata)
-- [ ] Define `UploadStatus` enum (Pending, Challenged, Approved, Rejected)
-- [ ] Implement `registerUpload(arweaveHash, metadata)` — backend calls this after Arweave upload
-- [ ] Implement `getUpload(arweaveHash)` — returns upload details
-- [ ] Implement `updateUploadStatus(arweaveHash, newStatus)` — called by stake contract
-- [ ] Add mapping from arweaveHash to Upload struct
-- [ ] Add mapping from uploader address to their upload hashes
-- [ ] Emit events: `UploadRegistered`, `UploadStatusChanged`
-- [ ] Access control: only authorized callers can register/update uploads
-- [ ] Prevent duplicate registrations for same arweaveHash
+- [x] Define `Upload` struct (arweaveHash, uploader, timestamp, status, metadata)
+- [x] Define `UploadStatus` enum (Pending, Challenged, Approved, Rejected)
+- [x] Implement `registerUpload(arweaveHash, uploader, metadata)` — backend calls after Arweave upload
+- [x] Implement `getUpload(arweaveHash)` — returns full upload details
+- [x] Implement `getUploadStatus(arweaveHash)` — returns status only
+- [x] Implement `getUploader(arweaveHash)` — returns uploader address
+- [x] Implement `uploadExists(arweaveHash)` — quick existence check
+- [x] Implement `updateUploadStatus(arweaveHash, newStatus)` — called by stake contract
+- [x] Add mapping from arweaveHash to Upload struct
+- [x] Add mapping from uploader address to their upload hashes
+- [x] Emit events: `UploadRegistered`, `UploadStatusChanged`, `AuthorizedCallerSet`
+- [x] Access control: onlyAuthorized modifier (authorized callers + owner)
+- [x] Prevent duplicate registrations for same arweaveHash
+- [x] Ownable (transferable ownership)
+- [x] Pausable (owner can freeze register/update)
 
-### Tests (`test/Library.test.js`)
-- [ ] Register upload stores correct metadata
-- [ ] Duplicate arweaveHash registration reverts
-- [ ] Only authorized address can register uploads
-- [ ] Status transitions work correctly
-- [ ] Events emitted on registration and status change
-- [ ] getUpload returns correct data
-- [ ] Uploader's upload list tracks correctly
+### Tests (`test/Library.test.js`) — 30 passing
+- [x] Register upload stores correct metadata
+- [x] Duplicate arweaveHash registration reverts
+- [x] Only authorized address can register uploads
+- [x] Owner can register directly
+- [x] Empty hash and zero address revert
+- [x] Status transitions work correctly (Pending → Challenged → Rejected, Pending → Approved)
+- [x] Unchanged status reverts
+- [x] Events emitted on registration, status change, and authorization
+- [x] getUpload, getUploadStatus, getUploader return correct data
+- [x] uploadExists returns true/false correctly
+- [x] Uploader's upload list tracks correctly
+- [x] Pause blocks writes, allows reads
+- [x] Authorization grant/revoke works, non-owner cannot set
 
 ---
 

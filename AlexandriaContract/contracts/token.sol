@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-
+/// @title AlexandriaToken - A standard ERC20 token with burnable and pausable features, owned by the deployer.
 contract AlexandriaToken is ERC20, ERC20Burnable, Ownable, Pausable {
 
     // 1 billion tokens with 18 decimals

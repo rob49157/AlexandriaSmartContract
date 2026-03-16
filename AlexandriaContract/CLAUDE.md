@@ -59,22 +59,22 @@ Upload Flow:
 - Challenge window: Days 1-14 (librarians can flag suspicious uploads)
 - Auto-approval: If no challenges by day 14, upload automatically approved
 
-### Payment Distribution
+### Payment Distribution (RESOLVED)
 
 **For Valid Uploads:**
-- Archivist receives: Staked tokens + upload reward (funded by protocol treasury or rental fees)
-- Reward structure should incentivize quality over quantity
+- Archivist receives: Staked tokens (100 ALEX) + upload reward (50 ALEX fixed, from treasury)
+- Reward is for contributing valid content, regardless of rental count
 
 **For Rental Revenue:**
 - Each rental payment gets split:
-  - X% to archivist who uploaded the book
-  - Y% to protocol treasury
-  - Z% to librarian staking pool (incentivize validation work)
+  - 70% to archivist who uploaded the book
+  - 20% to protocol treasury
+  - 10% to librarian reward pool
 
 **For Rejected Uploads:**
 - Slashed stake gets redistributed:
-  - Portion to librarian who flagged the invalid upload (incentivize vigilance)
-  - Portion burned or sent to treasury (disincentivize spam)
+  - 70% to librarian who flagged the invalid upload
+  - 30% burned (deflationary — no treasury cut on slashes)
 
 ### Librarian Role
 
@@ -134,48 +134,62 @@ npx hardhat help
 ## Project Structure
 
 ```
-contracts/          # Solidity smart contracts
-├── library.sol    # Main Alexandria library registry (tracks all uploads, metadata)
-├── token.sol      # $ALEX ERC20 token (payments, staking, rewards)
-├── Rent.sol       # Time-bound rental permission system (the "permission slip")
-├── stake.sol      # Upload staking mechanism (14-day validation, librarian challenges)
-└── payment.sol    # Payment distribution logic (upload rewards, rental revenue splits)
+contracts/              # Solidity smart contracts
+├── token.sol          # AlexandriaToken - $ALEX ERC20 (COMPLETE)
+├── library.sol        # AlexandriaLibrary - Upload registry (COMPLETE)
+├── stake.sol          # Upload staking & validation (TODO)
+├── Rent.sol           # Rental permissions for Lit Protocol (TODO)
+└── payment.sol        # Payment splits & reward claims (TODO)
 
-test/              # JavaScript test files (Mocha/Chai)
-ignition/modules/  # Hardhat Ignition deployment modules
-hardhat.config.js  # Hardhat configuration
+test/                  # JavaScript test files (Mocha/Chai)
+├── Token.test.js      # 17 tests passing
+├── Library.test.js    # 30 tests passing
+ignition/modules/      # Hardhat Ignition deployment modules
+hardhat.config.js      # Hardhat configuration
+checklist.md           # Full project checklist with resolved design decisions
 ```
 
 ### Contract Responsibilities Breakdown
 
-**library.sol** - Central registry
-- Maps Arweave hashes to upload metadata (uploader, timestamp, validation status)
-- Tracks upload approval/rejection state
-- References to related stake and rental records
-- May emit events for indexing (MongoDB listens to these)
+**token.sol** - `AlexandriaToken` (COMPLETE)
+- ERC20 + ERC20Burnable + Ownable + Pausable
+- 1 billion ALEX fixed supply, all minted to deployer at deploy
+- No minting — fixed cap. Burnable for slash deflationary mechanic
+- Owner can pause/unpause all transfers in emergencies
+- Ownership transferable (for future multisig migration)
 
-**token.sol** - $ALEX ERC20 token
-- Standard ERC20 with transfer, approve, etc.
-- May include additional functions for stake approval integration
-- Consider mintable/burnable if tokenomics require
+**library.sol** - `AlexandriaLibrary` (COMPLETE)
+- Central registry mapping Arweave hashes to Upload structs (uploader, timestamp, status, metadata)
+- UploadStatus enum: Pending, Challenged, Approved, Rejected
+- `registerUpload()` called by authorized backend after Arweave storage
+- `updateUploadStatus()` called by stake contract during challenge/resolution
+- Authorized caller system (owner + whitelisted contracts)
+- Ownable + Pausable
+- Emits events for MongoDB indexer: UploadRegistered, UploadStatusChanged
 
-**stake.sol** - Upload validation staking
-- Locks archivist stakes for 14 days per upload
-- Manages challenge submissions from librarians
+**stake.sol** - Upload validation staking (NOT YET BUILT)
+- Locks archivist stakes (min 100 ALEX) for 14 days per upload
+- Manages challenge submissions from whitelisted librarians
 - Handles stake release (success) or slashing (rejection)
-- Distributes slashed stakes to librarians and treasury
+- Slashed stakes: 70% to challenger, 30% burned
+- One challenger per upload, hard 14-day cutoff
+- Archivist cannot challenge own uploads
+- Anyone can call releaseStake after 14 days (permissionless auto-approval)
 - Time-based state transitions (pending → approved/rejected)
 
-**Rent.sol** - Rental access control
+**Rent.sol** - Rental access control (NOT YET BUILT)
 - Records time-bound rental permissions (arweaveHash → renter → expirationTime)
-- Validates active rentals for Lit Protocol integration
-- Processes rental payments
-- May emit events for analytics
+- Archivist-set pricing in ALEX, three fixed durations: 24h, 7d, 30d
+- No rental extensions — must create new rental after expiry
+- Validates active rentals for Lit Protocol integration via `isRentalActive()`
+- Blacklist support for addresses caught leaking
+- Delisting prevents new rentals but honors existing ones until expiry
 
-**payment.sol** - Revenue distribution
-- Receives rental payments and splits them (archivist/protocol/librarian pool)
-- Distributes upload rewards to successful archivists
-- Manages librarian reward claims
+**payment.sol** - Revenue distribution (NOT YET BUILT)
+- Rental revenue split: 70% archivist / 20% treasury / 10% librarian pool
+- Upload reward: 50 ALEX fixed per valid upload (from treasury)
+- Slash distribution: 70% challenger / 30% burned
+- Pull pattern for reward claims (not push)
 - Treasury management for protocol fees
 
 ## Testing Patterns
@@ -500,8 +514,18 @@ For each rental:
 - Time-bound rental permissions must be strictly enforced
 - Prevent front-running on rental purchases
 
-**Edge Cases:**
-- Handle uploads with zero rentals (archivist still gets reward?)
-- What if librarian challenges on day 14? (extend window or auto-reject challenge?)
-- Prevent stake amount manipulation (minimum stake requirement)
-- Handle archivists who abandon stakes (auto-release after 14 days)
+**Edge Cases (RESOLVED):**
+- Uploads with zero rentals: archivist still gets 50 ALEX upload reward (reward is for valid content, not popularity)
+- Challenge on day 14: hard cutoff, challenge rejected (keeps system predictable)
+- Minimum stake: 100 ALEX per upload (prevents spam)
+- Abandoned stakes: auto-release after 14 days, anyone can call `releaseStake()` (permissionless)
+- Delisted uploads with active rentals: honor existing rentals until expiry, block new ones
+
+## Resolved Design Decisions
+
+All design decisions are tracked in `checklist.md` Phase 2. Key decisions:
+- **Tokenomics:** 1B fixed supply, burnable (no minting), 100 ALEX min stake, 50 ALEX upload reward
+- **Splits:** Rental 70/20/10 (archivist/treasury/librarian), Slash 70/30 (challenger/burned)
+- **Pricing:** Archivist-set, 24h/7d/30d fixed durations, no extensions
+- **Access:** Single EOA admin for PoC (migrate to multisig before mainnet), whitelisted librarians
+- **Architecture:** Immutable contracts, Pausable, setter functions for wiring, string format for Arweave hashes
