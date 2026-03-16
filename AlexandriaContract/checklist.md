@@ -21,46 +21,49 @@ Everything needed to get the contracts fully functional, in order.
 ## Phase 2: Design Decisions (Must Resolve Before Coding)
 
 ### Tokenomics
-- [ ] Define total $ALEX token supply (fixed or uncapped?)
-- [ ] Decide: mintable, burnable, or fixed supply
-- [ ] Define initial token distribution (team, treasury, public, etc.)
-- [ ] Set minimum stake amount per upload
-- [ ] Set upload reward amount (fixed or dynamic?)
+- [x] **Total supply: 1,000,000,000 (1 billion) ALEX — fixed cap, all minted at deploy**
+- [x] **Mintable: No. Burnable: Yes** — slashed tokens get burned, creating deflationary pressure
+- [x] **Initial distribution:**
+  - 50% Protocol Treasury (upload rewards, ecosystem incentives)
+  - 20% Team (vested, not implemented in contract for PoC)
+  - 15% Librarian Reward Pool (pre-funded)
+  - 15% Public / Future Use (held in deployer wallet for PoC)
+- [x] **Minimum stake per upload: 100 ALEX**
+- [x] **Upload reward: 50 ALEX (fixed)** — paid from treasury on successful validation
 
 ### Payment Splits
-- [ ] Define rental revenue split percentages:
-  - [ ] Archivist share (X%)
-  - [ ] Protocol treasury share (Y%)
-  - [ ] Librarian pool share (Z%)
-- [ ] Define slash distribution percentages:
-  - [ ] Challenger reward (%)
-  - [ ] Treasury / burn (%)
+- [x] **Rental revenue split:**
+  - Archivist share: **70%**
+  - Protocol treasury: **20%**
+  - Librarian pool: **10%**
+- [x] **Slash distribution:**
+  - Challenger (librarian who flagged): **70%**
+  - Burned: **30%** (deflationary — no treasury cut on slashes)
 
 ### Rental Pricing
-- [ ] Decide pricing model: archivist-set, protocol-fixed, or tiered?
-- [ ] Define supported rental durations (24h, 7d, 30d, custom?)
-- [ ] Decide: can rentals be extended, or must users create new ones?
+- [x] **Pricing model: Archivist-set** — uploader sets price in ALEX when registering the upload
+- [x] **Supported durations: 24h, 7d, 30d** — three fixed tiers, no custom durations
+- [x] **No rental extensions** — user must create a new rental after expiry (simpler logic, cleaner audit trail)
 
 ### Access Control
-- [ ] Define admin model: single EOA, multisig, or timelock?
-- [ ] Define librarian authorization: whitelist, stake requirement, or open?
-- [ ] Decide: can an archivist also be a librarian on their own uploads?
-- [ ] Decide: can multiple librarians challenge the same upload?
-  - [ ] If yes, how are slash rewards split among challengers?
+- [x] **Admin model: Single EOA (deployer) for PoC** — migrate to multisig (e.g., Gnosis Safe) before mainnet. Single point of failure is not acceptable long-term.
+- [x] **Librarian authorization: Whitelist** — admin manually adds/removes librarian addresses
+- [x] **No — archivist cannot be a librarian on their own uploads** (prevents self-approval conflicts)
+- [x] **No — only one challenger per upload** (first librarian to challenge gets priority; simpler slash logic)
 
 ### Storage Format
-- [ ] Decide Arweave hash format: `string` (readable, expensive) vs `bytes32` (cheap, needs encoding)
+- [x] **`string` format for Arweave hashes** — readability and debuggability over gas savings for PoC. Arweave hashes are 43-char Base64URL, don't fit cleanly in bytes32 anyway.
 
 ### Edge Cases
-- [ ] Uploads with zero rentals — does archivist still get a reward?
-- [ ] Challenge submitted on day 14 — extend validation window or auto-reject?
-- [ ] Archivist abandons stake — auto-release after 14 days with no challenge?
-- [ ] What happens to active rentals if an upload is later delisted?
+- [x] **Yes — archivist gets upload reward regardless of rental count.** The reward is for contributing valid content, not for popularity.
+- [x] **Hard cutoff — challenges must be submitted before day 14.** Challenge on day 14 exactly is rejected. Keeps the system predictable.
+- [x] **Yes — auto-release after 14 days with no challenge.** Anyone can call `releaseStake()` after the window expires (archivist, bot, anyone). No admin action needed.
+- [x] **Honor existing rentals until expiry.** Delisting prevents new rentals but doesn't revoke active ones. Renters paid for access and should keep it.
 
 ### Architecture
-- [ ] Decide: upgradeable contracts (proxy pattern) or immutable?
-- [ ] Decide: include emergency pause functionality (Pausable)?
-- [ ] Define contract deployment order and address wiring strategy (constructor args vs setter functions)
+- [x] **Immutable contracts (no proxy pattern)** — simpler, more trustworthy for PoC. Redeploy if bugs found during testnet phase.
+- [x] **Yes — include Pausable** (OpenZeppelin Pausable). Admin can freeze all contracts in an emergency. Essential safety net for testnet.
+- [x] **Setter functions post-deploy** — each contract has `setContractAddress()` functions called after all contracts are deployed. More flexible than constructor args for PoC iteration.
 
 ---
 
