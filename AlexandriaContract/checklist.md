@@ -36,9 +36,12 @@ Everything needed to get the contracts fully functional, in order.
   - Archivist share: **70%**
   - Protocol treasury: **20%**
   - Librarian pool: **10%**
-- [x] **Slash distribution:**
+- [x] **Slash distribution (archivist stake on rejected upload):**
   - Challenger (librarian who flagged): **70%**
   - Burned: **30%** (deflationary — no treasury cut on slashes)
+- [x] **Librarian penalty (wrong challenge — upload approved):**
+  - 50% of librarian's stake sent to archivist as compensation
+  - 50% remains with librarian
 
 ### Rental Pricing
 - [x] **Pricing model: Archivist-set** — uploader sets price in ALEX when registering the upload
@@ -47,7 +50,7 @@ Everything needed to get the contracts fully functional, in order.
 
 ### Access Control
 - [x] **Admin model: Single EOA (deployer) for PoC** — migrate to multisig (e.g., Gnosis Safe) before mainnet. Single point of failure is not acceptable long-term.
-- [x] **Librarian authorization: Whitelist** — admin manually adds/removes librarian addresses
+- [x] **Librarian authorization: Stake-based** — anyone can become a librarian by staking minimum 50 ALEX. 30-day cooldown to unstake.
 - [x] **No — archivist cannot be a librarian on their own uploads** (prevents self-approval conflicts)
 - [x] **No — only one challenger per upload** (first librarian to challenge gets priority; simpler slash logic)
 
@@ -133,40 +136,61 @@ Everything needed to get the contracts fully functional, in order.
 ## Phase 5: Stake Contract (`stake.sol`)
 
 ### Implementation
-- [ ] Import and interact with token.sol (ERC20 transferFrom for staking)
-- [ ] Import and interact with library.sol (read/update upload status)
-- [ ] Define `Stake` struct (arweaveHash, staker, amount, stakeTime, status, challenger)
-- [ ] Implement `stakeForUpload(arweaveHash, amount)` — lock tokens for 14 days
+- [x] Import and interact with token.sol (ERC20 transferFrom for staking)
+- [x] Import and interact with library.sol (read/update upload status)
+- [x] Define `StakeInfo` struct (staker, amount, timestamp, active) + `Challenger` struct (challenger, timestamp, resolved)
+- [x] Implement `stake(arweaveHash, amount)` — lock tokens, validate upload exists, enforce min stake
 - [ ] Implement `getStakeStatus(arweaveHash)` — return stake state
-- [ ] Implement `releaseStake(arweaveHash)` — return stake + reward after 14 days if valid
-- [ ] Implement `slashStake(arweaveHash)` — penalize invalid uploads
-- [ ] Implement `challengeUpload(arweaveHash, reason)` — librarian flags upload
-- [ ] Implement `resolveChallenge(arweaveHash, approved)` — admin resolves dispute
-- [ ] Enforce 14-day minimum lock via `block.timestamp`
-- [ ] Enforce minimum stake amount
+- [x] Implement `unstake(arweaveHash)` — return stake after 14 days if valid, sets status to Approved
+- [x] Implement `slashStake(arweaveHash)` — internal, 70% to challenger, 30% burned
+- [x] Implement `challengeUpload(arweaveHash, reason)` — librarian flags upload, sets status to Challenged
+- [x] Implement `resolveChallenge(arweaveHash, approved)` — admin resolves: approved returns stake, rejected slashes
+- [x] Enforce 14-day minimum lock via `block.timestamp`
+- [x] Enforce minimum stake amount (100 ALEX)
 - [ ] Add reentrancy guards (OpenZeppelin ReentrancyGuard)
-- [ ] Emit events: `StakeDeposited`, `StakeReleased`, `StakeSlashed`, `UploadChallenged`, `ChallengeResolved`
-- [ ] Librarian authorization checks on challengeUpload
-- [ ] Admin authorization checks on resolveChallenge
-- [ ] Prevent slashing after 14-day window (time-bound admin actions)
-- [ ] Prevent double-challenge on same upload (or handle multi-challenge)
+- [x] Emit events: `Staked`, `Unstaked`, `slashed`, `challengeInitiated`, `ChallengeResolved`, `LibrarianStaked`, `LibrarianUnstaked`, `LibrarianSlashed`
+- [x] Librarian stake-based authorization (stakeAsLibrarian/unstakeAsLibrarian replaces admin whitelist)
+- [x] Admin authorization checks on resolveChallenge (onlyOwner)
+- [x] Define `LibrarianInfo` struct (amount, timestamp, active)
+- [x] Implement `stakeAsLibrarian(amount)` — lock min 50 ALEX to become librarian
+- [x] Implement `unstakeAsLibrarian()` — return stake after 30-day cooldown
+- [x] Wrong challenge slashes librarian 50%, sends to archivist as compensation
+- [x] Prevent challenge after 14-day window (hard cutoff)
+- [x] Prevent double-challenge on same upload (one challenger per upload)
+- [x] Prevent unstaking if upload is Challenged or Rejected
+- [x] Archivist cannot challenge own upload
 
-### Tests (`test/Stake.test.js`)
-- [ ] Staking locks correct token amount
-- [ ] Staking fails with insufficient balance or allowance
-- [ ] Staking fails below minimum stake amount
-- [ ] Cannot release stake before 14 days
-- [ ] Release after 14 days returns stake + reward
-- [ ] Challenge by authorized librarian works
-- [ ] Challenge by unauthorized address reverts
-- [ ] Challenge after 14 days reverts
-- [ ] resolveChallenge(approved=true) releases stake
-- [ ] resolveChallenge(approved=false) slashes stake
-- [ ] Slashed tokens distributed correctly (challenger + treasury)
-- [ ] Cannot slash after 14-day window expires
-- [ ] Reentrancy attack on release/slash fails
-- [ ] All events emitted correctly
-- [ ] Auto-approval flow (no challenge, 14 days pass, release works)
+### Tests (`test/Stake.test.js`) — 57 passing
+- [x] Staking locks correct token amount
+- [x] Staking records correct stake info
+- [x] Staking emits Staked event
+- [x] Staking fails with insufficient balance or allowance
+- [x] Staking fails below minimum stake amount (100 ALEX)
+- [x] Staking fails if upload does not exist
+- [x] Staking fails if already staked on same upload
+- [x] Cannot unstake before 14 days
+- [x] Unstake after 14 days returns stake to archivist
+- [x] Unstake marks stake inactive and sets upload to Approved
+- [x] Unstake reverts if upload is Challenged or Rejected
+- [x] Unstake reverts if caller is not staker
+- [x] Librarian staking locks tokens and activates librarian
+- [x] Librarian staking fails below min (50 ALEX), double stake, no balance, no approval
+- [x] Librarian unstake returns stake after 30-day cooldown
+- [x] Librarian unstake deactivates librarian, prevents further challenges
+- [x] Librarian unstake reverts before cooldown or if not active
+- [x] Challenge by active librarian works, updates status to Challenged
+- [x] Challenge by non-librarian reverts
+- [x] Archivist cannot challenge own upload
+- [x] Challenge after 14 days reverts
+- [x] Double challenge reverts
+- [x] resolveChallenge(approved=true) returns stake + slashes librarian 50% to archivist
+- [x] resolveChallenge(approved=false) slashes archivist stake (70% challenger, 30% burned)
+- [x] Correct challenge does not slash librarian stake
+- [x] resolveChallenge reverts if no challenge, already resolved, or non-owner
+- [x] All events emitted correctly (Staked, Unstaked, slashed, challengeInitiated, ChallengeResolved, LibrarianStaked, LibrarianUnstaked, LibrarianSlashed)
+- [x] Full happy path: stake → 14 days → unstake → Approved
+- [x] Full rejection path: stake → challenge → reject → slash
+- [x] Full wrong challenge path: stake → challenge → approve → librarian slashed
 
 ---
 
@@ -265,8 +289,27 @@ Everything needed to get the contracts fully functional, in order.
 
 - [ ] Wire contract addresses together (set references between contracts)
 - [ ] Transfer ownership/admin roles to intended address (multisig if applicable)
-- [ ] Authorize librarian addresses
+- [ ] Verify librarian staking works (librarians self-authorize by staking)
 - [ ] Fund treasury with initial $ALEX for upload rewards
 - [ ] Test isRentalActive from external call (simulate Lit Protocol check)
 - [ ] Update CLAUDE.md with final deployed addresses and resolved design decisions
 - [ ] Share ABIs with frontend and backend teams for integration
+
+---
+
+## Phase 11: Mainnet Upgrades (Post-PoC)
+
+### Decentralized Challenge Resolution
+Currently `resolveChallenge()` uses single admin (onlyOwner). Replace with librarian jury system:
+- [ ] Backend calls `challengeUpload()` when automated checks fail (ClamAV, SimHash, AI validation)
+- [ ] 3 random librarians selected from active pool (Chainlink VRF for on-chain randomness)
+- [ ] Anonymous voting via commit-reveal scheme (Phase 1: submit hash of vote+secret, Phase 2: reveal vote)
+- [ ] Voting threshold: 2/3 or 3/3 approve → upload passes; 1/3 or 0/3 → upload rejected
+- [ ] Minority voters slashed (voted wrong side)
+- [ ] Requires: enumerable librarian pool (array + mapping), timeout for non-voters, replacement selection
+- [ ] Voting window: e.g., 48h to commit, 24h to reveal
+
+### Other Mainnet Items
+- [ ] Migrate admin from single EOA to multisig (Gnosis Safe)
+- [ ] Audit all contracts
+- [ ] Gas optimization pass

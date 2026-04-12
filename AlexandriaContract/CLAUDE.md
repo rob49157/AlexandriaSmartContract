@@ -42,11 +42,14 @@ Upload Flow:
 
 ### Key Contract Requirements
 
-**Stake Contract (`stake.sol`):**
-- `stakeForUpload(arweaveHash, amount)` - Lock tokens when upload occurs
-- `getStakeStatus(arweaveHash)` - Check stake state (active/challenged/released)
-- `releaseStake(arweaveHash)` - After 14 days, return stake + reward if valid
-- `slashStake(arweaveHash)` - Penalize invalid uploads, redistribute slashed tokens
+**Stake Contract (`stake.sol`) — IMPLEMENTED:**
+- `stake(arweaveHash, amount)` - Lock tokens when upload occurs (min 100 ALEX)
+- `unstake(arweaveHash)` - After 14 days, return stake if valid, sets upload to Approved
+- `slashStake(arweaveHash)` - Internal, 70% to challenger, 30% burned
+- `stakeAsLibrarian(amount)` - Stake min 50 ALEX to become a librarian
+- `unstakeAsLibrarian()` - Withdraw librarian stake after 30-day cooldown
+- `challengeUpload(arweaveHash, reason)` - Active librarian flags suspicious content
+- `resolveChallenge(arweaveHash, approved)` - Admin resolves: approved returns stake + slashes librarian 50%, rejected slashes archivist stake
 
 **Validation States:**
 1. **Pending** (Days 0-14): Stake locked, librarians can review
@@ -71,25 +74,51 @@ Upload Flow:
   - 20% to protocol treasury
   - 10% to librarian reward pool
 
-**For Rejected Uploads:**
-- Slashed stake gets redistributed:
+**For Rejected Uploads (correct challenge):**
+- Archivist's slashed stake gets redistributed:
   - 70% to librarian who flagged the invalid upload
   - 30% burned (deflationary — no treasury cut on slashes)
+- Librarian's stake: untouched
+
+**For Approved Uploads After Challenge (wrong challenge):**
+- Archivist's stake: returned in full
+- Librarian's stake: 50% sent to archivist as compensation, 50% remains with librarian
 
 ### Librarian Role
 
-Librarians are incentivized validators who:
-- Review uploads flagged by automated checks
-- Can challenge suspicious uploads during the 14-day window
-- Earn rewards from:
-  - Slashed stakes (when they correctly identify bad uploads)
-  - Share of rental revenue pool
-  - Potentially their own staking rewards for active participation
+Librarians are stake-based validators. Anyone can become a librarian by staking ALEX tokens — no admin approval needed.
 
-**Key Functions Needed:**
-- `challengeUpload(arweaveHash, reason)` - Librarian flags suspicious content
-- `resolveChallenge(arweaveHash, approved)` - Admin/DAO resolves disputed uploads
+**Becoming a Librarian:**
+- Stake minimum 50 ALEX via `stakeAsLibrarian(amount)` to become active
+- 30-day cooldown before unstaking via `unstakeAsLibrarian()`
+- Stake acts as skin-in-the-game to prevent frivolous challenges
+
+**Librarian Incentives (3 layers):**
+1. **Correct challenge reward:** 70% of slashed archivist stake (direct reward for catching bad uploads)
+2. **Rental revenue share:** 10% of all rental fees go to librarian pool
+3. **Protocol fee share:** Proportional to stake or activity
+
+**Librarian Penalties:**
+- **Wrong challenge (upload approved by admin):** 50% of librarian's stake sent to archivist as compensation
+- Discourages frivolous challenges while allowing honest mistakes (not full slash)
+
+**Key Functions (IMPLEMENTED in stake.sol):**
+- `stakeAsLibrarian(amount)` - Stake ALEX to become an active librarian
+- `unstakeAsLibrarian()` - Withdraw stake after 30-day cooldown
+- `challengeUpload(arweaveHash, reason)` - Flag suspicious content (active librarians only)
+- `resolveChallenge(arweaveHash, approved)` - Admin resolves disputed uploads
+
+**Key Functions (TODO in payment.sol):**
 - `claimLibrarianRewards()` - Librarians withdraw accumulated rewards
+
+**Mainnet Upgrade: Decentralized Challenge Resolution**
+Current PoC uses single admin (onlyOwner) to resolve challenges. For mainnet, replace with:
+1. Backend runs automated checks (ClamAV, SimHash, AI validation) → if fails → backend calls `challengeUpload()`
+2. 3 random librarians selected from pool (Chainlink VRF for on-chain randomness)
+3. Anonymous voting via commit-reveal scheme (hidden votes, then reveal phase)
+4. 2/3 or 3/3 approve → upload passes, minority voter(s) slashed
+5. 1/3 or 0/3 approve → upload rejected, minority voter(s) slashed
+6. Requires: enumerable librarian pool, timeout/replacement for non-voters, two-phase voting window
 
 ## Environment & Tooling
 
@@ -137,13 +166,14 @@ npx hardhat help
 contracts/              # Solidity smart contracts
 ├── token.sol          # AlexandriaToken - $ALEX ERC20 (COMPLETE)
 ├── library.sol        # AlexandriaLibrary - Upload registry (COMPLETE)
-├── stake.sol          # Upload staking & validation (TODO)
+├── stake.sol          # Upload staking, librarian staking & validation (COMPLETE - 57 tests)
 ├── Rent.sol           # Rental permissions for Lit Protocol (TODO)
 └── payment.sol        # Payment splits & reward claims (TODO)
 
 test/                  # JavaScript test files (Mocha/Chai)
 ├── Token.test.js      # 17 tests passing
 ├── Library.test.js    # 30 tests passing
+├── Stake.test.js      # 57 tests passing
 ignition/modules/      # Hardhat Ignition deployment modules
 hardhat.config.js      # Hardhat configuration
 checklist.md           # Full project checklist with resolved design decisions
@@ -167,15 +197,18 @@ checklist.md           # Full project checklist with resolved design decisions
 - Ownable + Pausable
 - Emits events for MongoDB indexer: UploadRegistered, UploadStatusChanged
 
-**stake.sol** - Upload validation staking (NOT YET BUILT)
+**stake.sol** - `AlexandriaStake` (COMPLETE — 57 tests passing)
+- Ownable (admin resolves challenges)
 - Locks archivist stakes (min 100 ALEX) for 14 days per upload
-- Manages challenge submissions from whitelisted librarians
+- Stake-based librarian system: anyone stakes min 50 ALEX to become librarian (30-day cooldown to unstake)
+- Manages challenge submissions from staked librarians
 - Handles stake release (success) or slashing (rejection)
-- Slashed stakes: 70% to challenger, 30% burned
+- Correct challenge: archivist slashed 70% to challenger, 30% burned
+- Wrong challenge: librarian slashed 50% to archivist as compensation
 - One challenger per upload, hard 14-day cutoff
 - Archivist cannot challenge own uploads
-- Anyone can call releaseStake after 14 days (permissionless auto-approval)
-- Time-based state transitions (pending → approved/rejected)
+- `unstake()` after 14 days sets upload to Approved via library.updateUploadStatus()
+- Emits events: Staked, Unstaked, slashed, challengeInitiated, ChallengeResolved, LibrarianStaked, LibrarianUnstaked, LibrarianSlashed
 
 **Rent.sol** - Rental access control (NOT YET BUILT)
 - Records time-bound rental permissions (arweaveHash → renter → expirationTime)
@@ -500,7 +533,7 @@ For each rental:
 - 14-day lock period must be strictly enforced via `block.timestamp` checks
 - Prevent early stake withdrawal even if upload appears valid
 - Prevent stake slashing after 14-day window expires (time-bound admin actions)
-- Challenge system must prevent spam challenges (require librarian stake/reputation?)
+- Challenge system prevents spam via librarian staking (min 50 ALEX, 50% slashed on wrong challenge)
 
 **Payment Distribution:**
 - Token transfers must follow checks-effects-interactions pattern
@@ -509,7 +542,7 @@ For each rental:
 - Protect against rounding errors in revenue distribution
 
 **Access Control:**
-- Only authorized librarians can challenge uploads
+- Only staked librarians can challenge uploads (stake-based authorization)
 - Only admin/DAO can resolve challenges (prevent self-serving decisions)
 - Time-bound rental permissions must be strictly enforced
 - Prevent front-running on rental purchases
@@ -527,5 +560,5 @@ All design decisions are tracked in `checklist.md` Phase 2. Key decisions:
 - **Tokenomics:** 1B fixed supply, burnable (no minting), 100 ALEX min stake, 50 ALEX upload reward
 - **Splits:** Rental 70/20/10 (archivist/treasury/librarian), Slash 70/30 (challenger/burned)
 - **Pricing:** Archivist-set, 24h/7d/30d fixed durations, no extensions
-- **Access:** Single EOA admin for PoC (migrate to multisig before mainnet), whitelisted librarians
+- **Access:** Single EOA admin for PoC (migrate to multisig before mainnet), stake-based librarians (50 ALEX min, 30-day cooldown)
 - **Architecture:** Immutable contracts, Pausable, setter functions for wiring, string format for Arweave hashes

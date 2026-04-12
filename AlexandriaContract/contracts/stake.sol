@@ -11,6 +11,8 @@ contract AlexandriaStake is Ownable {
     // Staking parameters
     uint256 public constant MIN_STAKE = 100 * 10 ** 18; // Minimum stake of 100 ALEX
     uint256 public constant CHALLENGE_PERIOD = 14 days; // Time window for challenges after an upload is registered
+    uint256 public constant MIN_LIBRARIAN_STAKE = 50 * 10 ** 18; // Minimum stake of 50 ALEX to become librarian
+    uint256 public constant LIBRARIAN_COOLDOWN = 30 days; // Cooldown period before librarian can unstake
 
     // Mapping of arweaveHash to staker's address and amount
     struct StakeInfo {
@@ -28,8 +30,13 @@ contract AlexandriaStake is Ownable {
     }
     mapping (string => Challenger) public challenges;
 
-    // Whitelisted librarians who can challenge uploads
-    mapping(address => bool) public authorizedLibrarians;
+    // Librarian staking
+    struct LibrarianInfo {
+        uint256 amount;
+        uint256 timestamp; // When they staked
+        bool active;
+    }
+    mapping(address => LibrarianInfo) public librarians;
 
 
     // Events
@@ -38,6 +45,9 @@ contract AlexandriaStake is Ownable {
     event ChallengeResolved(string indexed arweaveHash, bool approved);
     event slashed(string indexed arweaveHash, address indexed staker, uint256 amount);
     event challengeInitiated(string indexed arweaveHash, address indexed challenger);
+    event LibrarianStaked(address indexed librarian, uint256 amount);
+    event LibrarianUnstaked(address indexed librarian, uint256 amount);
+    event LibrarianSlashed(address indexed librarian, uint256 amount, address indexed archivist);
 
     constructor(address _libraryAddress, address _tokenAddress) Ownable(msg.sender) {
         libraryContract = AlexandriaLibrary(_libraryAddress);
@@ -105,12 +115,37 @@ contract AlexandriaStake is Ownable {
 
         emit slashed(arweaveHash, stakeInfo.staker, stakeInfo.amount);
     }
-    function setAuthorizedLibrarian(address librarian, bool authorized) external onlyOwner {
-        authorizedLibrarians[librarian] = authorized;
+    function stakeAsLibrarian(uint256 amount) external {
+        require(amount >= MIN_LIBRARIAN_STAKE, "Librarian stake too low");
+        require(!librarians[msg.sender].active, "Already staked as librarian");
+
+        tokenContract.transferFrom(msg.sender, address(this), amount);
+
+        librarians[msg.sender] = LibrarianInfo({
+            amount: amount,
+            timestamp: block.timestamp,
+            active: true
+        });
+
+        emit LibrarianStaked(msg.sender, amount);
+    }
+
+    function unstakeAsLibrarian() external {
+        LibrarianInfo storage info = librarians[msg.sender];
+        require(info.active, "Not an active librarian");
+        require(block.timestamp >= info.timestamp + LIBRARIAN_COOLDOWN, "Cooldown period not over");
+
+        info.active = false;
+        uint256 amount = info.amount;
+        info.amount = 0;
+
+        tokenContract.transfer(msg.sender, amount);
+
+        emit LibrarianUnstaked(msg.sender, amount);
     }
 
     function challengeUpload(string memory arweaveHash, string memory reason) external {
-        require(authorizedLibrarians[msg.sender], "Not an authorized librarian");
+        require(librarians[msg.sender].active, "Not an active librarian");
         require(stakes[arweaveHash].active, "No active stake");
         require(stakes[arweaveHash].staker != msg.sender, "Cannot challenge own upload");
         require(block.timestamp < stakes[arweaveHash].timestamp + CHALLENGE_PERIOD, "Challenge period expired");
@@ -144,6 +179,13 @@ contract AlexandriaStake is Ownable {
             libraryContract.updateUploadStatus(arweaveHash, AlexandriaLibrary.UploadStatus.Approved);
             tokenContract.transfer(stakeInfo.staker, stakeInfo.amount);
             emit Unstaked(arweaveHash, stakeInfo.staker, stakeInfo.amount);
+
+            // Slash librarian 50% for wrong challenge, give to archivist
+            LibrarianInfo storage libInfo = librarians[challenge.challenger];
+            uint256 slashAmount = libInfo.amount / 2;
+            libInfo.amount -= slashAmount;
+            tokenContract.transfer(stakeInfo.staker, slashAmount);
+            emit LibrarianSlashed(challenge.challenger, slashAmount, stakeInfo.staker);
         } else {
             // Upload is invalid — slash the stake
             slashStake(arweaveHash);
