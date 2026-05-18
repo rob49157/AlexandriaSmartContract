@@ -3,10 +3,17 @@ pragma solidity ^0.8.28;
 
 import "./library.sol";
 import "./token.sol";
+interface IAlexandriaPayment {
+    function notifyStakeChange(address librarian) external;
+}
+
 /// @title AlexandriaStake - Manages staking of ALEX tokens for upload validation and dispute resolution in the Alexandria ecosystem.
 contract AlexandriaStake is Ownable {
     AlexandriaLibrary public libraryContract;
     AlexandriaToken public tokenContract;
+    IAlexandriaPayment public paymentContract;
+
+    uint256 public totalLibrarianStake;
 
     // Staking parameters
     uint256 public constant MIN_STAKE = 100 * 10 ** 18; // Minimum stake of 100 ALEX
@@ -52,6 +59,15 @@ contract AlexandriaStake is Ownable {
     constructor(address _libraryAddress, address _tokenAddress) Ownable(msg.sender) {
         libraryContract = AlexandriaLibrary(_libraryAddress);
         tokenContract = AlexandriaToken(_tokenAddress);
+    }
+
+    function setPaymentContract(address _paymentContract) external onlyOwner {
+        require(_paymentContract != address(0), "Zero address");
+        paymentContract = IAlexandriaPayment(_paymentContract);
+    }
+
+    function getLibrarianStake(address librarian) external view returns (uint256) {
+        return librarians[librarian].amount;
     }
 
     function stake(string memory arweaveHash, uint256 amount) external {
@@ -121,11 +137,18 @@ contract AlexandriaStake is Ownable {
 
         tokenContract.transferFrom(msg.sender, address(this), amount);
 
+        // Snapshot earnings at current rate before stake changes
+        if (address(paymentContract) != address(0)) {
+            paymentContract.notifyStakeChange(msg.sender);
+        }
+
         librarians[msg.sender] = LibrarianInfo({
             amount: amount,
             timestamp: block.timestamp,
             active: true
         });
+
+        totalLibrarianStake += amount;
 
         emit LibrarianStaked(msg.sender, amount);
     }
@@ -135,9 +158,16 @@ contract AlexandriaStake is Ownable {
         require(info.active, "Not an active librarian");
         require(block.timestamp >= info.timestamp + LIBRARIAN_COOLDOWN, "Cooldown period not over");
 
+        // Snapshot earnings at current rate before stake changes
+        if (address(paymentContract) != address(0)) {
+            paymentContract.notifyStakeChange(msg.sender);
+        }
+
         info.active = false;
         uint256 amount = info.amount;
         info.amount = 0;
+
+        totalLibrarianStake -= amount;
 
         tokenContract.transfer(msg.sender, amount);
 
@@ -183,7 +213,14 @@ contract AlexandriaStake is Ownable {
             // Slash librarian 50% for wrong challenge, give to archivist
             LibrarianInfo storage libInfo = librarians[challenge.challenger];
             uint256 slashAmount = libInfo.amount / 2;
+
+            // Snapshot earnings before stake is reduced
+            if (address(paymentContract) != address(0)) {
+                paymentContract.notifyStakeChange(challenge.challenger);
+            }
+
             libInfo.amount -= slashAmount;
+            totalLibrarianStake -= slashAmount;
             tokenContract.transfer(stakeInfo.staker, slashAmount);
             emit LibrarianSlashed(challenge.challenger, slashAmount, stakeInfo.staker);
         } else {

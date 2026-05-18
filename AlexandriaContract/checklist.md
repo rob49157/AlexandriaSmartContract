@@ -197,30 +197,44 @@ Everything needed to get the contracts fully functional, in order.
 ## Phase 6: Rent Contract (`Rent.sol`)
 
 ### Implementation
-- [ ] Define `Rental` struct (arweaveHash, renter, startTime, expiryTime)
-- [ ] Implement `rentBook(arweaveHash, duration)` — create rental + trigger payment
-- [ ] Implement `isRentalActive(arweaveHash, renter) → bool` — Lit Protocol reads this
-- [ ] Implement `getRental(arweaveHash, renter)` — return rental details
-- [ ] Add nested mapping: `arweaveHash → renter → Rental`
-- [ ] Validate upload is Approved before allowing rental (check library.sol)
-- [ ] Validate rental duration is within allowed range
-- [ ] Handle rental extension logic (if decided to support)
-- [ ] Add blacklist mapping and check in `isRentalActive`
-- [ ] Add blacklist management functions (add/remove, admin only)
-- [ ] Emit events: `BookRented`, `RentalExpired`, `AddressBlacklisted`
-- [ ] Integrate with payment.sol for fee splitting
+- [x] Add nested mapping: `arweaveHash → renter → expiry timestamp` (no struct needed — flat mapping is simpler)
+- [x] Add `bookPrices` mapping: archivist-set per-day rate in ALEX per book
+- [x] Add `blacklisted` mapping: addresses banned from renting
+- [x] Add `delisted` mapping: books blocked from new rentals (existing rentals honoured)
+- [x] Define duration constants: `DURATION_1DAY`, `DURATION_7DAY`, `DURATION_30DAY`
+- [x] Implement `isRentalActive(arweaveHash, renter) → bool` — Lit Protocol reads this, returns false if expired or blacklisted, reverts if paused
+- [x] Implement `setBookPrice(arweaveHash, price)` — archivist-only, upload must be Approved
+- [x] Implement `rentBook(arweaveHash, duration)` — validates blacklist, delist, approval, duration, no active rental; charges daily rate × days; records expiry
+- [x] Implement `blacklistAddress(address)` — admin only, immediately revokes rental access via isRentalActive
+- [x] Implement `delistBook(arweaveHash)` — admin only, blocks new rentals while honouring existing ones
+- [x] Implement `pause()` / `unpause()` — admin emergency kill switch, freezes all functions including isRentalActive
+- [x] Validate upload is Approved before allowing rental (via library.sol)
+- [x] Validate duration is one of the three fixed constants (no custom durations)
+- [x] No rental extensions — active rental blocks new rental, must wait for expiry
+- [x] Archivist cannot rent their own book
+- [x] Emit events: `BookRented`, `BookPriceSet`, `AddressBlacklisted`, `BookDelisted`
+- [x] Ownable + Pausable inherited
+- [ ] Integrate with payment.sol for rental fee splitting (deferred — tokens held in contract until payment.sol is built)
 
 ### Tests (`test/Rent.test.js`)
-- [ ] Renting approved book creates correct rental record
-- [ ] Renting unapproved/pending book reverts
+- [ ] Renting approved book creates correct rental record and expiry
+- [ ] Renting unapproved/pending/challenged book reverts
+- [ ] Renting delisted book reverts
+- [ ] Archivist cannot rent their own book
+- [ ] Blacklisted address cannot rent
+- [ ] Duration must be one of three valid constants
+- [ ] Active rental blocks new rental (no extensions)
+- [ ] Correct total price charged (daily rate × days for each duration)
 - [ ] isRentalActive returns true during rental period
 - [ ] isRentalActive returns false after expiry
 - [ ] isRentalActive returns false for blacklisted address
-- [ ] Rental payment collected correctly
-- [ ] Duplicate rental behavior (extend vs reject)
-- [ ] Events emitted on rental creation
-- [ ] Blacklist add/remove restricted to admin
-- [ ] Duration validation (min/max) works
+- [ ] isRentalActive reverts when contract is paused
+- [ ] setBookPrice only callable by archivist of that upload
+- [ ] setBookPrice reverts if upload not Approved
+- [ ] setBookPrice reverts if price is zero
+- [ ] blacklistAddress and delistBook restricted to owner
+- [ ] Events emitted correctly (BookRented, BookPriceSet, AddressBlacklisted, BookDelisted)
+- [ ] pause/unpause blocks and resumes all functions
 
 ---
 
