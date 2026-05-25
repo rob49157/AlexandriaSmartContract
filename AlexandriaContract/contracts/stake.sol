@@ -5,6 +5,7 @@ import "./library.sol";
 import "./token.sol";
 interface IAlexandriaPayment {
     function notifyStakeChange(address librarian) external;
+    function distributeUploadReward(string memory arweaveHash) external;
 }
 
 /// @title AlexandriaStake - Manages staking of ALEX tokens for upload validation and dispute resolution in the Alexandria ecosystem.
@@ -106,6 +107,10 @@ contract AlexandriaStake is Ownable {
 
         // Transfer tokens back to staker
         tokenContract.transfer(stakeInfo.staker, stakeInfo.amount);
+
+        if (address(paymentContract) != address(0)) {
+            paymentContract.distributeUploadReward(arweaveHash);
+        }
 
         emit Unstaked(arweaveHash, stakeInfo.staker, stakeInfo.amount);
     }
@@ -224,7 +229,8 @@ contract AlexandriaStake is Ownable {
             tokenContract.transfer(stakeInfo.staker, slashAmount);
             emit LibrarianSlashed(challenge.challenger, slashAmount, stakeInfo.staker);
         } else {
-            // Upload is invalid — slash the stake
+            // Upload is invalid — slash the stake and also blacklist the user from uploading
+            //need to write logic for blacklisting in library.sol and call it here as well
             slashStake(arweaveHash);
         }
 

@@ -7,25 +7,16 @@ import "./library.sol";
 import "./token.sol";
 
 // This contract is the on-chain permission registry for Alexandria rentals.
-// It does NOT handle PDF files or encryption — those are managed off-chain via Arweave and Lit Protocol.
-// Lit Protocol calls isRentalActive() on this contract before releasing a book's decryption key to a renter.
 
-// The contract will need to:
-// - Allow users (not archivists) to rent a book for a fixed duration: 24h, 7d, or 30d (no extensions)
-// - Accept payment in ALEX tokens at a per-book price set by the archivist
-// - Record rental permissions: arweaveHash → renter address → expiry timestamp
-// - Expose isRentalActive(arweaveHash, renter) → bool for Lit Protocol to query
-// - Only allow rentals on Approved uploads (checked via AlexandriaLibrary)
-// - Support blacklisting addresses caught leaking decrypted content
-// - Support delisting: block new rentals on a hash while honouring existing ones until expiry
-// - Forward rental payments to payment.sol for revenue splitting (70% archivist / 20% treasury / 10% librarian pool)
-
-// This contract will need references to: AlexandriaToken, AlexandriaLibrary, and eventually payment.sol
+interface IAlexandriaPayment {
+    function processRentalPayment(string memory arweaveHash, address renter, uint256 amount) external;
+}
 
 contract AlexandriaRent is Ownable, Pausable {
 
     AlexandriaLibrary public libraryContract;
     AlexandriaToken public tokenContract;
+    IAlexandriaPayment public paymentContract;
 
     // Valid rental durations
     uint256 public constant DURATION_1DAY = 1 days;
@@ -50,10 +41,17 @@ contract AlexandriaRent is Ownable, Pausable {
     event BookPriceSet(string indexed arweaveHash, uint256 price);
     event AddressBlacklisted(address indexed renter);
     event BookDelisted(string indexed arweaveHash);
+    event PaymentContractSet(address indexed paymentContract);
 
     constructor(address _libraryAddress, address _tokenAddress) Ownable(msg.sender) {
         libraryContract = AlexandriaLibrary(_libraryAddress);
         tokenContract = AlexandriaToken(_tokenAddress);
+    }
+
+    function setPaymentContract(address _paymentContract) external onlyOwner {
+        require(_paymentContract != address(0), "Zero address");
+        paymentContract = IAlexandriaPayment(_paymentContract);
+        emit PaymentContractSet(_paymentContract);
     }
 
     function isRentalActive(string memory arweaveHash, address renter) public view whenNotPaused returns (bool) {
@@ -84,12 +82,13 @@ contract AlexandriaRent is Ownable, Pausable {
         uint256 daysCount = duration / 1 days;
         uint256 totalPrice = bookPrices[arweaveHash] * daysCount;
 
-        // Collect payment — held by contract until payment.sol handles splitting
-        tokenContract.transferFrom(msg.sender, address(this), totalPrice);
+        require(address(paymentContract) != address(0), "Payment contract not set");
+        tokenContract.transferFrom(msg.sender, address(paymentContract), totalPrice);
 
         uint256 expiry = block.timestamp + duration;
         rentals[arweaveHash][msg.sender] = expiry;
 
+        paymentContract.processRentalPayment(arweaveHash, msg.sender, totalPrice);
         emit BookRented(arweaveHash, msg.sender, expiry, duration);
     }
 

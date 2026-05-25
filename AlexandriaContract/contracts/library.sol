@@ -44,6 +44,7 @@ contract AlexandriaLibrary is Ownable, Pausable {
     // --- Admin Functions ---
 
     // Owner adds/removes authorized callers (backend, stake contract, etc.)
+    
     function setAuthorizedCaller(address caller, bool authorized) external onlyOwner {
         authorizedCallers[caller] = authorized;
         emit AuthorizedCallerSet(caller, authorized);

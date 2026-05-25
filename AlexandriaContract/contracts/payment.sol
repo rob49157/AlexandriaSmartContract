@@ -139,8 +139,6 @@ contract AlexandriaPayment is Ownable, Pausable, ReentrancyGuard {
         // Remainder absorbs rounding dust — goes to treasury
         uint256 treasuryAmount = amount - archivistAmount - librarianAmount;
 
-        tokenContract.transferFrom(renter, address(this), amount);
-
         pendingArchivistRewards[archivist] += archivistAmount;
         _updateRewardRate(librarianAmount);
         tokenContract.transfer(treasury, treasuryAmount);
