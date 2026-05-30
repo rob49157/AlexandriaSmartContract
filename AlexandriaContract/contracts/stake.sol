@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./library.sol";
 import "./token.sol";
 interface IAlexandriaPayment {
@@ -9,7 +11,7 @@ interface IAlexandriaPayment {
 }
 
 /// @title AlexandriaStake - Manages staking of ALEX tokens for upload validation and dispute resolution in the Alexandria ecosystem.
-contract AlexandriaStake is Ownable {
+contract AlexandriaStake is Ownable, Pausable, ReentrancyGuard {
     AlexandriaLibrary public libraryContract;
     AlexandriaToken public tokenContract;
     IAlexandriaPayment public paymentContract;
@@ -67,11 +69,19 @@ contract AlexandriaStake is Ownable {
         paymentContract = IAlexandriaPayment(_paymentContract);
     }
 
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     function getLibrarianStake(address librarian) external view returns (uint256) {
         return librarians[librarian].amount;
     }
 
-    function stake(string memory arweaveHash, uint256 amount) external {
+    function stake(string memory arweaveHash, uint256 amount) external whenNotPaused nonReentrant {
         require(amount >= MIN_STAKE, "Stake amount too low");
         require(libraryContract.uploadExists(arweaveHash), "Upload not found");
         require(stakes[arweaveHash].active == false, "Already staked");
@@ -90,7 +100,7 @@ contract AlexandriaStake is Ownable {
         emit Staked(arweaveHash, msg.sender, amount);
     }
 
-    function unstake( string memory arweaveHash)external{
+    function unstake(string memory arweaveHash) external whenNotPaused nonReentrant {
         StakeInfo storage stakeInfo = stakes[arweaveHash];
         require(stakeInfo.active, "No active stake");
         require(stakeInfo.staker == _msgSender(), "Not staker");
@@ -136,7 +146,7 @@ contract AlexandriaStake is Ownable {
 
         emit slashed(arweaveHash, stakeInfo.staker, stakeInfo.amount);
     }
-    function stakeAsLibrarian(uint256 amount) external {
+    function stakeAsLibrarian(uint256 amount) external whenNotPaused nonReentrant {
         require(amount >= MIN_LIBRARIAN_STAKE, "Librarian stake too low");
         require(!librarians[msg.sender].active, "Already staked as librarian");
 
@@ -158,7 +168,7 @@ contract AlexandriaStake is Ownable {
         emit LibrarianStaked(msg.sender, amount);
     }
 
-    function unstakeAsLibrarian() external {
+    function unstakeAsLibrarian() external whenNotPaused nonReentrant {
         LibrarianInfo storage info = librarians[msg.sender];
         require(info.active, "Not an active librarian");
         require(block.timestamp >= info.timestamp + LIBRARIAN_COOLDOWN, "Cooldown period not over");
@@ -179,7 +189,7 @@ contract AlexandriaStake is Ownable {
         emit LibrarianUnstaked(msg.sender, amount);
     }
 
-    function challengeUpload(string memory arweaveHash, string memory reason) external {
+    function challengeUpload(string memory arweaveHash, string memory reason) external whenNotPaused {
         require(librarians[msg.sender].active, "Not an active librarian");
         require(stakes[arweaveHash].active, "No active stake");
         require(stakes[arweaveHash].staker != msg.sender, "Cannot challenge own upload");
@@ -198,7 +208,7 @@ contract AlexandriaStake is Ownable {
 
         emit challengeInitiated(arweaveHash, msg.sender);
     }
-    function resolveChallenge(string memory arweaveHash, bool approved) external onlyOwner {
+    function resolveChallenge(string memory arweaveHash, bool approved) external onlyOwner whenNotPaused nonReentrant {
         Challenger storage challenge = challenges[arweaveHash];
         StakeInfo storage stakeInfo = stakes[arweaveHash];
 

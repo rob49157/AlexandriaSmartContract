@@ -69,7 +69,7 @@ contract AlexandriaPayment is Ownable, Pausable, ReentrancyGuard {
         require(authorizedCallers[msg.sender], "Not authorized");
         _;
     }
-
+    // setting contracts for authorized callers (Rent.sol, Stake.sol)
     function setAuthorizedCaller(address caller, bool authorized) external onlyOwner {
         require(caller != address(0), "Zero address");
         authorizedCallers[caller] = authorized;
@@ -81,6 +81,7 @@ contract AlexandriaPayment is Ownable, Pausable, ReentrancyGuard {
     // Grows the global reward rate when new rental revenue arrives.
     // If no librarians are staked, the librarian share falls back to treasury.
     function _updateRewardRate(uint256 newRewards) internal {
+        // check
         if (address(stakeContract) == address(0)) {
             tokenContract.transfer(treasury, newRewards);
             return;
@@ -101,6 +102,7 @@ contract AlexandriaPayment is Ownable, Pausable, ReentrancyGuard {
                + librarianEarned[librarian];
     }
 
+    //snapshots the librarian's earned rewards and updates their paid rate to the current global rate.
     function _snapshotRewards(address librarian) private {
         librarianEarned[librarian] = earned(librarian);
         userRewardPerTokenPaid[librarian] = rewardPerTokenStored;

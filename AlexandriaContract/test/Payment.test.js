@@ -38,6 +38,8 @@ describe("AlexandriaPayment", function () {
     await token.transfer(librarian2.address, ethers.parseEther("1000"));
     await token.transfer(renter.address, ethers.parseEther("1000"));
     await token.transfer(treasury.address, ethers.parseEther("10000"));
+    // Pre-fund payment contract — simulates what rentBook() does before calling processRentalPayment()
+    await token.transfer(await payment.getAddress(), ethers.parseEther("5000"));
 
     // Approvals
     await token.connect(treasury).approve(await payment.getAddress(), ethers.parseEther("10000"));
