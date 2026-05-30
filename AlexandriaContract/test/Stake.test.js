@@ -393,7 +393,7 @@ describe("AlexandriaStake", function () {
 
       await expect(stake.connect(librarian).challengeUpload(HASH_1, "Duplicate"))
         .to.emit(stake, "challengeInitiated")
-        .withArgs(HASH_1, librarian.address);
+        .withArgs(HASH_1, librarian.address, "Duplicate");
     });
 
     it("should revert if not an active librarian", async function () {

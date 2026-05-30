@@ -37,6 +37,7 @@ contract AlexandriaStake is Ownable, Pausable, ReentrancyGuard {
         address challenger;
         uint256 timestamp; // When the challenge was initiated
         bool resolved; // Whether the challenge has been resolved
+        string reason; // Why the upload was flagged
     }
     mapping (string => Challenger) public challenges;
 
@@ -54,7 +55,7 @@ contract AlexandriaStake is Ownable, Pausable, ReentrancyGuard {
     event Unstaked(string indexed arweaveHash, address indexed staker, uint256 amount);
     event ChallengeResolved(string indexed arweaveHash, bool approved);
     event slashed(string indexed arweaveHash, address indexed staker, uint256 amount);
-    event challengeInitiated(string indexed arweaveHash, address indexed challenger);
+    event challengeInitiated(string indexed arweaveHash, address indexed challenger, string reason);
     event LibrarianStaked(address indexed librarian, uint256 amount);
     event LibrarianUnstaked(address indexed librarian, uint256 amount);
     event LibrarianSlashed(address indexed librarian, uint256 amount, address indexed archivist);
@@ -79,6 +80,10 @@ contract AlexandriaStake is Ownable, Pausable, ReentrancyGuard {
 
     function getLibrarianStake(address librarian) external view returns (uint256) {
         return librarians[librarian].amount;
+    }
+
+    function getStakeStatus(string memory arweaveHash) external view returns (StakeInfo memory) {
+        return stakes[arweaveHash];
     }
 
     function stake(string memory arweaveHash, uint256 amount) external whenNotPaused nonReentrant {
@@ -200,13 +205,14 @@ contract AlexandriaStake is Ownable, Pausable, ReentrancyGuard {
         challenges[arweaveHash] = Challenger({
             challenger: msg.sender,
             timestamp: block.timestamp,
-            resolved: false
+            resolved: false,
+            reason: reason
         });
 
         // Update library status to Challenged
         libraryContract.updateUploadStatus(arweaveHash, AlexandriaLibrary.UploadStatus.Challenged);
 
-        emit challengeInitiated(arweaveHash, msg.sender);
+        emit challengeInitiated(arweaveHash, msg.sender, reason);
     }
     function resolveChallenge(string memory arweaveHash, bool approved) external onlyOwner whenNotPaused nonReentrant {
         Challenger storage challenge = challenges[arweaveHash];
