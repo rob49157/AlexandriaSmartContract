@@ -133,21 +133,21 @@ Everything needed to get the contracts fully functional, in order.
 
 ---
 
-## Phase 5: Stake Contract (`stake.sol`)
+## Phase 5: Stake Contract (`stake.sol`) — COMPLETE
 
 ### Implementation
 - [x] Import and interact with token.sol (ERC20 transferFrom for staking)
 - [x] Import and interact with library.sol (read/update upload status)
 - [x] Define `StakeInfo` struct (staker, amount, timestamp, active) + `Challenger` struct (challenger, timestamp, resolved)
 - [x] Implement `stake(arweaveHash, amount)` — lock tokens, validate upload exists, enforce min stake
-- [ ] Implement `getStakeStatus(arweaveHash)` — return stake state
+- [x] Implement `getStakeStatus(arweaveHash)` — return stake state
 - [x] Implement `unstake(arweaveHash)` — return stake after 14 days if valid, sets status to Approved
 - [x] Implement `slashStake(arweaveHash)` — internal, 70% to challenger, 30% burned
 - [x] Implement `challengeUpload(arweaveHash, reason)` — librarian flags upload, sets status to Challenged
-- [x] Implement `resolveChallenge(arweaveHash, approved)` — admin resolves: approved returns stake, rejected slashes
+- [x] Implement `resolveChallenge(arweaveHash, approved, shouldBlacklist)` — admin resolves disputed uploads
 - [x] Enforce 14-day minimum lock via `block.timestamp`
 - [x] Enforce minimum stake amount (100 ALEX)
-- [ ] Add reentrancy guards (OpenZeppelin ReentrancyGuard)
+- [x] Add reentrancy guards (OpenZeppelin ReentrancyGuard)
 - [x] Emit events: `Staked`, `Unstaked`, `slashed`, `challengeInitiated`, `ChallengeResolved`, `LibrarianStaked`, `LibrarianUnstaked`, `LibrarianSlashed`
 - [x] Librarian stake-based authorization (stakeAsLibrarian/unstakeAsLibrarian replaces admin whitelist)
 - [x] Admin authorization checks on resolveChallenge (onlyOwner)
@@ -160,7 +160,7 @@ Everything needed to get the contracts fully functional, in order.
 - [x] Prevent unstaking if upload is Challenged or Rejected
 - [x] Archivist cannot challenge own upload
 
-### Tests (`test/Stake.test.js`) — 57 passing
+### Tests (`test/Stake.test.js`) — 58 passing
 - [x] Staking locks correct token amount
 - [x] Staking records correct stake info
 - [x] Staking emits Staked event
@@ -191,10 +191,11 @@ Everything needed to get the contracts fully functional, in order.
 - [x] Full happy path: stake → 14 days → unstake → Approved
 - [x] Full rejection path: stake → challenge → reject → slash
 - [x] Full wrong challenge path: stake → challenge → approve → librarian slashed
+- [x] **NEW:** Blacklist uploader on rejection if requested
 
 ---
 
-## Phase 6: Rent Contract (`Rent.sol`)
+## Phase 6: Rent Contract (`Rent.sol`) — COMPLETE
 
 ### Implementation
 - [x] Add nested mapping: `arweaveHash → renter → expiry timestamp` (no struct needed — flat mapping is simpler)
@@ -214,7 +215,7 @@ Everything needed to get the contracts fully functional, in order.
 - [x] Archivist cannot rent their own book
 - [x] Emit events: `BookRented`, `BookPriceSet`, `AddressBlacklisted`, `BookDelisted`
 - [x] Ownable + Pausable inherited
-- [ ] Integrate with payment.sol for rental fee splitting (deferred — tokens held in contract until payment.sol is built)
+- [x] Integrate with payment.sol for rental fee splitting
 
 ### Tests (`test/Rent.test.js`)
 - [ ] Renting approved book creates correct rental record and expiry
@@ -238,35 +239,35 @@ Everything needed to get the contracts fully functional, in order.
 
 ---
 
-## Phase 7: Payment Contract (`payment.sol`)
+## Phase 7: Payment Contract (`payment.sol`) — COMPLETE
 
 ### Implementation
-- [ ] Implement `processRentalPayment(arweaveHash, renter, amount)` — split rental fee
-- [ ] Implement `distributeUploadReward(arweaveHash)` — pay archivist for valid upload
-- [ ] Implement `distributeSlashReward(arweaveHash, challenger)` — pay challenger from slashed stake
-- [ ] Implement `claimLibrarianRewards()` — librarians withdraw accumulated rewards
-- [ ] Implement `claimArchivistRewards()` — archivists withdraw accumulated rewards
-- [ ] Track pending rewards per address (pull pattern, not push)
-- [ ] Revenue split logic with correct percentages
-- [ ] Treasury balance tracking
-- [ ] Reentrancy guards on all claim/withdraw functions
-- [ ] Validate percentage splits sum to 100%
-- [ ] Handle rounding errors in splits (remainder goes to treasury)
-- [ ] Emit events: `RentalPaymentProcessed`, `RewardClaimed`, `UploadRewardDistributed`
-- [ ] Access control: only Rent.sol and Stake.sol can call distribution functions
+- [x] Implement `processRentalPayment(arweaveHash, renter, amount)` — split rental fee
+- [x] Implement `distributeUploadReward(arweaveHash)` — pay archivist for valid upload
+- [x] Implement `distributeSlashReward(arweaveHash, challenger)` — pay challenger from slashed stake
+- [x] Implement `claimLibrarianRewards()` — librarians withdraw accumulated rewards
+- [x] Implement `claimArchivistRewards()` — archivists withdraw accumulated rewards
+- [x] Track pending rewards per address (pull pattern, not push)
+- [x] Revenue split logic with correct percentages
+- [x] Treasury balance tracking
+- [x] Reentrancy guards on all claim/withdraw functions
+- [x] Validate percentage splits sum to 100%
+- [x] Handle rounding errors in splits (remainder goes to treasury)
+- [x] Emit events: `RentalPaymentProcessed`, `RewardClaimed`, `UploadRewardDistributed`
+- [x] Access control: only Rent.sol and Stake.sol can call distribution functions
 
-### Tests (`test/Payment.test.js`)
-- [ ] Rental payment splits correctly to archivist, treasury, librarian pool
-- [ ] Upload reward distributes correct amount to archivist
-- [ ] Slash reward distributes correctly to challenger + treasury
-- [ ] claimLibrarianRewards sends correct accumulated amount
-- [ ] claimArchivistRewards sends correct accumulated amount
-- [ ] Claiming with zero balance reverts
-- [ ] Double-claim prevented (balance zeroed after claim)
-- [ ] Rounding errors handled (no tokens lost)
-- [ ] Reentrancy attack on claim fails
-- [ ] Only authorized contracts can call distribution functions
-- [ ] Events emitted correctly
+### Tests (`test/Payment.test.js`) — 41 passing
+- [x] Rental payment splits correctly to archivist, treasury, librarian pool
+- [x] Upload reward distributes correct amount to archivist
+- [x] Slash reward distributes correctly to challenger + treasury
+- [x] claimLibrarianRewards sends correct accumulated amount
+- [x] claimArchivistRewards sends correct accumulated amount
+- [x] Claiming with zero balance reverts
+- [x] Double-claim prevented (balance zeroed after claim)
+- [x] Rounding errors handled (no tokens lost)
+- [x] Reentrancy attack on claim fails
+- [x] Only authorized contracts can call distribution functions
+- [x] Events emitted correctly
 
 ---
 

@@ -25,6 +25,9 @@ contract AlexandriaLibrary is Ownable, Pausable {
     // uploader address => list of their arweave hashes
     mapping(address => string[]) private uploaderHashes;
 
+    // Addresses banned from uploading (malicious archivists)
+    mapping(address => bool) public blacklisted;
+
     // Authorized contract addresses that can register or update uploads
     mapping(address => bool) public authorizedCallers;
 
@@ -32,6 +35,7 @@ contract AlexandriaLibrary is Ownable, Pausable {
     event UploadRegistered(string indexed arweaveHash, address indexed uploader, string metadata);
     event UploadStatusChanged(string indexed arweaveHash, UploadStatus oldStatus, UploadStatus newStatus);
     event AuthorizedCallerSet(address indexed caller, bool authorized);
+    event AddressBlacklisted(address indexed uploader);
 
     // Modifiers, only allow owner or authorized contracts to call certain functions
     modifier onlyAuthorized() {
@@ -50,6 +54,13 @@ contract AlexandriaLibrary is Ownable, Pausable {
         emit AuthorizedCallerSet(caller, authorized);
     }
 
+    function blacklistUploader(address uploader) external onlyAuthorized {
+        require(uploader != address(0), "Invalid address");
+        require(!blacklisted[uploader], "Already blacklisted");
+        blacklisted[uploader] = true;
+        emit AddressBlacklisted(uploader);
+    }
+
     function pause() external onlyOwner {
         _pause();
     }
@@ -66,6 +77,8 @@ contract AlexandriaLibrary is Ownable, Pausable {
         require(bytes(arweaveHash).length > 0, "Empty arweave hash");
         // check to make sure uploader is not zero address
         require(uploader != address(0), "Invalid uploader address");
+        // check if uploader is blacklisted
+        require(!blacklisted[uploader], "Uploader is blacklisted");
         //check if upload already exists
         require(uploads[arweaveHash].timestamp == 0, "Upload already registered");
         // we pass the metadata in the struct

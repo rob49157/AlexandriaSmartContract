@@ -88,6 +88,7 @@ contract AlexandriaStake is Ownable, Pausable, ReentrancyGuard {
 
     function stake(string memory arweaveHash, uint256 amount) external whenNotPaused nonReentrant {
         require(amount >= MIN_STAKE, "Stake amount too low");
+        require(libraryContract.getUploader(arweaveHash) == msg.sender, "Not your upload");
         require(libraryContract.uploadExists(arweaveHash), "Upload not found");
         require(stakes[arweaveHash].active == false, "Already staked");
 
@@ -214,7 +215,7 @@ contract AlexandriaStake is Ownable, Pausable, ReentrancyGuard {
 
         emit challengeInitiated(arweaveHash, msg.sender, reason);
     }
-    function resolveChallenge(string memory arweaveHash, bool approved) external onlyOwner whenNotPaused nonReentrant {
+    function resolveChallenge(string memory arweaveHash, bool approved, bool shouldBlacklist) external onlyOwner whenNotPaused nonReentrant {
         Challenger storage challenge = challenges[arweaveHash];
         StakeInfo storage stakeInfo = stakes[arweaveHash];
 
@@ -245,8 +246,10 @@ contract AlexandriaStake is Ownable, Pausable, ReentrancyGuard {
             tokenContract.transfer(stakeInfo.staker, slashAmount);
             emit LibrarianSlashed(challenge.challenger, slashAmount, stakeInfo.staker);
         } else {
-            // Upload is invalid — slash the stake and also blacklist the user from uploading
-            //need to write logic for blacklisting in library.sol and call it here as well
+            // Upload is invalid — slash the stake
+            if (shouldBlacklist) {
+                libraryContract.blacklistUploader(stakeInfo.staker);
+            }
             slashStake(arweaveHash);
         }
 

@@ -269,4 +269,49 @@ describe("AlexandriaLibrary", function () {
       expect(await library.getUploadStatus(HASH_1)).to.equal(0);
     });
   });
+
+  describe("Blacklisting", function () {
+    it("should allow owner to blacklist uploader", async function () {
+      const { library, uploader1 } = await loadFixture(deployFixture);
+      await library.blacklistUploader(uploader1.address);
+      expect(await library.blacklisted(uploader1.address)).to.be.true;
+    });
+
+    it("should allow authorized callers to blacklist uploader", async function () {
+      const { library, backend, uploader1 } = await loadFixture(deployFixture);
+      await library.connect(backend).blacklistUploader(uploader1.address);
+      expect(await library.blacklisted(uploader1.address)).to.be.true;
+    });
+
+    it("should prevent non-authorized addresses from blacklisting", async function () {
+      const { library, uploader1, uploader2 } = await loadFixture(deployFixture);
+      await expect(
+        library.connect(uploader1).blacklistUploader(uploader2.address)
+      ).to.be.revertedWith("Not authorized");
+    });
+
+    it("should emit AddressBlacklisted event", async function () {
+      const { library, uploader1 } = await loadFixture(deployFixture);
+      await expect(library.blacklistUploader(uploader1.address))
+        .to.emit(library, "AddressBlacklisted")
+        .withArgs(uploader1.address);
+    });
+
+    it("should revert if already blacklisted", async function () {
+      const { library, uploader1 } = await loadFixture(deployFixture);
+      await library.blacklistUploader(uploader1.address);
+      await expect(
+        library.blacklistUploader(uploader1.address)
+      ).to.be.revertedWith("Already blacklisted");
+    });
+
+    it("should prevent blacklisted uploader from registering new uploads", async function () {
+      const { library, backend, uploader1 } = await loadFixture(deployFixture);
+      await library.blacklistUploader(uploader1.address);
+
+      await expect(
+        library.connect(backend).registerUpload(HASH_1, uploader1.address, METADATA_1)
+      ).to.be.revertedWith("Uploader is blacklisted");
+    });
+  });
 });

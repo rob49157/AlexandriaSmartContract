@@ -49,7 +49,7 @@ Upload Flow:
 - `stakeAsLibrarian(amount)` - Stake min 50 ALEX to become a librarian
 - `unstakeAsLibrarian()` - Withdraw librarian stake after 30-day cooldown
 - `challengeUpload(arweaveHash, reason)` - Active librarian flags suspicious content
-- `resolveChallenge(arweaveHash, approved)` - Admin resolves: approved returns stake + slashes librarian 50%, rejected slashes archivist stake
+- `resolveChallenge(arweaveHash, approved, shouldBlacklist)` - Admin resolves: approved returns stake + slashes librarian 50%, rejected slashes archivist stake (optional blacklist)
 
 **Validation States:**
 1. **Pending** (Days 0-14): Stake locked, librarians can review
@@ -62,7 +62,7 @@ Upload Flow:
 - Challenge window: Days 1-14 (librarians can flag suspicious uploads)
 - Auto-approval: If no challenges by day 14, upload automatically approved
 
-### Payment Distribution (RESOLVED)
+### Payment Distribution (IMPLEMENTED)
 
 **For Valid Uploads:**
 - Archivist receives: Staked tokens (100 ALEX) + upload reward (50 ALEX fixed, from treasury)
@@ -79,6 +79,7 @@ Upload Flow:
   - 70% to librarian who flagged the invalid upload
   - 30% burned (deflationary — no treasury cut on slashes)
 - Librarian's stake: untouched
+- **Optional Blacklist:** Admin can ban uploader permanently via `resolveChallenge`
 
 **For Approved Uploads After Challenge (wrong challenge):**
 - Archivist's stake: returned in full
@@ -106,9 +107,9 @@ Librarians are stake-based validators. Anyone can become a librarian by staking 
 - `stakeAsLibrarian(amount)` - Stake ALEX to become an active librarian
 - `unstakeAsLibrarian()` - Withdraw stake after 30-day cooldown
 - `challengeUpload(arweaveHash, reason)` - Flag suspicious content (active librarians only)
-- `resolveChallenge(arweaveHash, approved)` - Admin resolves disputed uploads
+- `resolveChallenge(arweaveHash, approved, shouldBlacklist)` - Admin resolves disputed uploads
 
-**Key Functions (TODO in payment.sol):**
+**Key Functions (IMPLEMENTED in payment.sol):**
 - `claimLibrarianRewards()` - Librarians withdraw accumulated rewards
 
 **Mainnet Upgrade: Decentralized Challenge Resolution**
@@ -166,14 +167,15 @@ npx hardhat help
 contracts/              # Solidity smart contracts
 ├── token.sol          # AlexandriaToken - $ALEX ERC20 (COMPLETE)
 ├── library.sol        # AlexandriaLibrary - Upload registry (COMPLETE)
-├── stake.sol          # Upload staking, librarian staking & validation (COMPLETE - 57 tests)
-├── Rent.sol           # Rental permissions for Lit Protocol (TODO)
-└── payment.sol        # Payment splits & reward claims (TODO)
+├── stake.sol          # Upload staking, librarian staking & validation (COMPLETE - 58 tests)
+├── Rent.sol           # Rental permissions for Lit Protocol (COMPLETE)
+└── payment.sol        # Payment splits & reward claims (COMPLETE - 41 tests)
 
 test/                  # JavaScript test files (Mocha/Chai)
 ├── Token.test.js      # 17 tests passing
-├── Library.test.js    # 30 tests passing
-├── Stake.test.js      # 57 tests passing
+├── Library.test.js    # 36 tests passing
+├── Stake.test.js      # 58 tests passing
+├── Payment.test.js    # 41 tests passing
 ignition/modules/      # Hardhat Ignition deployment modules
 hardhat.config.js      # Hardhat configuration
 checklist.md           # Full project checklist with resolved design decisions
@@ -210,7 +212,7 @@ checklist.md           # Full project checklist with resolved design decisions
 - `unstake()` after 14 days sets upload to Approved via library.updateUploadStatus()
 - Emits events: Staked, Unstaked, slashed, challengeInitiated, ChallengeResolved, LibrarianStaked, LibrarianUnstaked, LibrarianSlashed
 
-**Rent.sol** - Rental access control (NOT YET BUILT)
+**Rent.sol** - Rental access control (COMPLETE)
 - Records time-bound rental permissions (arweaveHash → renter → expirationTime)
 - Archivist-set pricing in ALEX, three fixed durations: 24h, 7d, 30d
 - No rental extensions — must create new rental after expiry
@@ -218,7 +220,7 @@ checklist.md           # Full project checklist with resolved design decisions
 - Blacklist support for addresses caught leaking
 - Delisting prevents new rentals but honors existing ones until expiry
 
-**payment.sol** - Revenue distribution (NOT YET BUILT)
+**payment.sol** - Revenue distribution (COMPLETE)
 - Rental revenue split: 70% archivist / 20% treasury / 10% librarian pool
 - Upload reward: 50 ALEX fixed per valid upload (from treasury)
 - Slash distribution: 70% challenger / 30% burned

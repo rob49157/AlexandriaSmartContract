@@ -228,7 +228,7 @@ describe("AlexandriaStake", function () {
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
 
       await stake.connect(librarian).challengeUpload(HASH_1, "Bad content");
-      await stake.connect(owner).resolveChallenge(HASH_1, false);
+      await stake.connect(owner).resolveChallenge(HASH_1, false, false);
 
       await time.increase(FOURTEEN_DAYS);
       await expect(
@@ -467,7 +467,7 @@ describe("AlexandriaStake", function () {
       await stake.connect(librarian).challengeUpload(HASH_1, "Suspicious");
 
       const balanceBefore = await token.balanceOf(archivist.address);
-      await stake.connect(owner).resolveChallenge(HASH_1, true);
+      await stake.connect(owner).resolveChallenge(HASH_1, true, false);
       const balanceAfter = await token.balanceOf(archivist.address);
 
       // Archivist gets stake back + 50% of librarian's stake
@@ -480,7 +480,7 @@ describe("AlexandriaStake", function () {
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
       await stake.connect(librarian).challengeUpload(HASH_1, "Suspicious");
 
-      await stake.connect(owner).resolveChallenge(HASH_1, true);
+      await stake.connect(owner).resolveChallenge(HASH_1, true, false);
 
       // Librarian's stake should be halved
       const info = await stake.librarians(librarian.address);
@@ -493,7 +493,7 @@ describe("AlexandriaStake", function () {
       await stake.connect(librarian).challengeUpload(HASH_1, "Suspicious");
 
       const slashAmount = librarianStakeAmount / 2n;
-      await expect(stake.connect(owner).resolveChallenge(HASH_1, true))
+      await expect(stake.connect(owner).resolveChallenge(HASH_1, true, false))
         .to.emit(stake, "LibrarianSlashed")
         .withArgs(librarian.address, slashAmount, archivist.address);
     });
@@ -503,7 +503,7 @@ describe("AlexandriaStake", function () {
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
       await stake.connect(librarian).challengeUpload(HASH_1, "Suspicious");
 
-      await stake.connect(owner).resolveChallenge(HASH_1, true);
+      await stake.connect(owner).resolveChallenge(HASH_1, true, false);
       expect(await library.getUploadStatus(HASH_1)).to.equal(2); // Approved
     });
 
@@ -513,7 +513,7 @@ describe("AlexandriaStake", function () {
       await stake.connect(librarian).challengeUpload(HASH_1, "Bad content");
 
       const librarianBefore = await token.balanceOf(librarian.address);
-      await stake.connect(owner).resolveChallenge(HASH_1, false);
+      await stake.connect(owner).resolveChallenge(HASH_1, false, false);
       const librarianAfter = await token.balanceOf(librarian.address);
 
       // Challenger gets 70% of archivist stake
@@ -527,7 +527,7 @@ describe("AlexandriaStake", function () {
       await stake.connect(librarian).challengeUpload(HASH_1, "Bad content");
 
       const totalSupplyBefore = await token.totalSupply();
-      await stake.connect(owner).resolveChallenge(HASH_1, false);
+      await stake.connect(owner).resolveChallenge(HASH_1, false, false);
       const totalSupplyAfter = await token.totalSupply();
 
       const expectedBurn = stakeAmount - (stakeAmount * 70n) / 100n;
@@ -539,7 +539,7 @@ describe("AlexandriaStake", function () {
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
       await stake.connect(librarian).challengeUpload(HASH_1, "Bad content");
 
-      await stake.connect(owner).resolveChallenge(HASH_1, false);
+      await stake.connect(owner).resolveChallenge(HASH_1, false, false);
 
       // Librarian's stake should be untouched
       const info = await stake.librarians(librarian.address);
@@ -551,7 +551,7 @@ describe("AlexandriaStake", function () {
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
       await stake.connect(librarian).challengeUpload(HASH_1, "Bad content");
 
-      await stake.connect(owner).resolveChallenge(HASH_1, false);
+      await stake.connect(owner).resolveChallenge(HASH_1, false, false);
       expect(await library.getUploadStatus(HASH_1)).to.equal(3); // Rejected
     });
 
@@ -560,7 +560,7 @@ describe("AlexandriaStake", function () {
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
       await stake.connect(librarian).challengeUpload(HASH_1, "Suspicious");
 
-      await stake.connect(owner).resolveChallenge(HASH_1, true);
+      await stake.connect(owner).resolveChallenge(HASH_1, true, false);
       const challenge = await stake.challenges(HASH_1);
       expect(challenge.resolved).to.be.true;
     });
@@ -570,7 +570,7 @@ describe("AlexandriaStake", function () {
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
       await stake.connect(librarian).challengeUpload(HASH_1, "Suspicious");
 
-      await expect(stake.connect(owner).resolveChallenge(HASH_1, true))
+      await expect(stake.connect(owner).resolveChallenge(HASH_1, true, false))
         .to.emit(stake, "ChallengeResolved")
         .withArgs(HASH_1, true);
     });
@@ -580,7 +580,7 @@ describe("AlexandriaStake", function () {
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
       await stake.connect(librarian).challengeUpload(HASH_1, "Bad content");
 
-      await expect(stake.connect(owner).resolveChallenge(HASH_1, false))
+      await expect(stake.connect(owner).resolveChallenge(HASH_1, false, false))
         .to.emit(stake, "slashed")
         .withArgs(HASH_1, archivist.address, stakeAmount);
     });
@@ -590,7 +590,7 @@ describe("AlexandriaStake", function () {
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
 
       await expect(
-        stake.connect(owner).resolveChallenge(HASH_1, true)
+        stake.connect(owner).resolveChallenge(HASH_1, true, false)
       ).to.be.revertedWith("No challenge exists");
     });
 
@@ -598,10 +598,10 @@ describe("AlexandriaStake", function () {
       const { library, stake, owner, archivist, librarian, stakeAmount } = await loadFixture(deployFixture);
       await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
       await stake.connect(librarian).challengeUpload(HASH_1, "Suspicious");
-      await stake.connect(owner).resolveChallenge(HASH_1, true);
+      await stake.connect(owner).resolveChallenge(HASH_1, true, false);
 
       await expect(
-        stake.connect(owner).resolveChallenge(HASH_1, false)
+        stake.connect(owner).resolveChallenge(HASH_1, false, false)
       ).to.be.revertedWith("Challenge already resolved");
     });
 
@@ -611,7 +611,7 @@ describe("AlexandriaStake", function () {
       await stake.connect(librarian).challengeUpload(HASH_1, "Suspicious");
 
       await expect(
-        stake.connect(librarian).resolveChallenge(HASH_1, true)
+        stake.connect(librarian).resolveChallenge(HASH_1, true, false)
       ).to.be.revertedWithCustomError(stake, "OwnableUnauthorizedAccount");
     });
   });
@@ -646,7 +646,7 @@ describe("AlexandriaStake", function () {
 
       const librarianBefore = await token.balanceOf(librarian.address);
       const supplyBefore = await token.totalSupply();
-      await stake.connect(owner).resolveChallenge(HASH_1, false);
+      await stake.connect(owner).resolveChallenge(HASH_1, false, false);
 
       const librarianAfter = await token.balanceOf(librarian.address);
       const supplyAfter = await token.totalSupply();
@@ -665,7 +665,7 @@ describe("AlexandriaStake", function () {
       await stake.connect(librarian).challengeUpload(HASH_1, "False accusation");
 
       const archivistBefore = await token.balanceOf(archivist.address);
-      await stake.connect(owner).resolveChallenge(HASH_1, true);
+      await stake.connect(owner).resolveChallenge(HASH_1, true, false);
       const archivistAfter = await token.balanceOf(archivist.address);
 
       // Archivist gets stake back + 50% of librarian stake
@@ -677,6 +677,21 @@ describe("AlexandriaStake", function () {
       expect(libInfo.amount).to.equal(librarianStakeAmount / 2n);
 
       expect(await library.getUploadStatus(HASH_1)).to.equal(2); // Approved
+    });
+
+    it("should blacklist uploader when shouldBlacklist is true", async function () {
+      const { library, stake, owner, archivist, librarian, stakeAmount } = await loadFixture(deployFixture);
+      await registerAndStake(library, stake, owner, archivist, HASH_1, stakeAmount);
+      await stake.connect(librarian).challengeUpload(HASH_1, "Malicious virus");
+
+      await stake.connect(owner).resolveChallenge(HASH_1, false, true);
+
+      expect(await library.blacklisted(archivist.address)).to.be.true;
+      
+      // Verify they cannot upload anymore
+      await expect(
+        library.connect(owner).registerUpload(HASH_2, archivist.address, "Another Book")
+      ).to.be.revertedWith("Uploader is blacklisted");
     });
   });
 });

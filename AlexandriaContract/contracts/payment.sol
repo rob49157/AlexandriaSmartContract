@@ -69,6 +69,15 @@ contract AlexandriaPayment is Ownable, Pausable, ReentrancyGuard {
         require(authorizedCallers[msg.sender], "Not authorized");
         _;
     }
+
+      // Snapshots latest earned rewards before claiming — ensures no rewards are missed
+    // between the last stake change and the claim.
+    modifier updateReward(address librarian) {
+        if (address(stakeContract) != address(0)) {
+            _snapshotRewards(librarian);
+        }
+        _;
+    }
     // setting contracts for authorized callers (Rent.sol, Stake.sol)
     function setAuthorizedCaller(address caller, bool authorized) external onlyOwner {
         require(caller != address(0), "Zero address");
@@ -108,14 +117,7 @@ contract AlexandriaPayment is Ownable, Pausable, ReentrancyGuard {
         userRewardPerTokenPaid[librarian] = rewardPerTokenStored;
     }
 
-    // Snapshots latest earned rewards before claiming — ensures no rewards are missed
-    // between the last stake change and the claim.
-    modifier updateReward(address librarian) {
-        if (address(stakeContract) != address(0)) {
-            _snapshotRewards(librarian);
-        }
-        _;
-    }
+  
 
     // Called by stake.sol before any librarian stake change (stake / unstake / slash).
     // Locks in the librarian's earnings at the current rate before their share of
@@ -150,21 +152,25 @@ contract AlexandriaPayment is Ownable, Pausable, ReentrancyGuard {
 
     // Called by Stake.sol when unstake() succeeds (valid upload approved after 14 days).
     // Treasury must have approved this contract to spend UPLOAD_REWARD on its behalf.
+    // Rewards go to Archivist -
     function distributeUploadReward(string memory arweaveHash)
         external onlyAuthorized whenNotPaused
     {
+        // checks arweavehash has not been rewarded already
         require(!uploadRewardClaimed[arweaveHash], "Reward already claimed");
 
         address archivist = libraryContract.getUploader(arweaveHash);
 
         uploadRewardClaimed[arweaveHash] = true;
+        // we send 50 alex to archivist from treasury. we use transferFrom because treasury is the one sending the tokens, so treasury must approve this contract to spend UPLOAD_REWARD before calling this function.
+        // need to change address(this) to treasury, because we are sending from treasury, not from this contract balance
         tokenContract.transferFrom(treasury, archivist, UPLOAD_REWARD);
 
+        // we emit the event for the frontend to track successful distribution of upload reward
         emit UploadRewardDistributed(arweaveHash, archivist, UPLOAD_REWARD);
     }
 
-    // Slash distribution is handled directly in stake.sol (slashStake / resolveChallenge).
-    // No distributeSlashReward needed here.
+    
 
     // --- Claim Functions (Pull Pattern) ---
 
@@ -172,7 +178,9 @@ contract AlexandriaPayment is Ownable, Pausable, ReentrancyGuard {
         uint256 amount = pendingArchivistRewards[msg.sender];
         require(amount > 0, "Nothing to claim");
 
+        // reset earned rewards before transfer to prevent reentrancy issues
         pendingArchivistRewards[msg.sender] = 0;
+        // means we are sending from this contract balance, so we use transfer, not transferFrom
         tokenContract.transfer(msg.sender, amount);
 
         emit RewardClaimed(msg.sender, amount);
@@ -182,6 +190,7 @@ contract AlexandriaPayment is Ownable, Pausable, ReentrancyGuard {
         uint256 amount = librarianEarned[msg.sender];
         require(amount > 0, "Nothing to claim");
 
+        // reset earned rewards before transfer to prevent reentrancy issues
         librarianEarned[msg.sender] = 0;
         tokenContract.transfer(msg.sender, amount);
 
