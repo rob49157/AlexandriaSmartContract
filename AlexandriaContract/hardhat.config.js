@@ -20,10 +20,6 @@ module.exports = {
     },
   },
   etherscan: {
-    apiKey: {
-      // The modern 'hardhat-verify' plugin natively supports baseSepolia 
-      // and uses the new V2 API (https://api.etherscan.io/v2/api) automatically.
-      baseSepolia: process.env.BASESCAN_API_KEY || "",
-    },
+    apiKey: process.env.BASESCAN_API_KEY || "",
   },
 };

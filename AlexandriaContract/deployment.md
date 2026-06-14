@@ -32,7 +32,9 @@ npm install dotenv
 Create a `.env` file in the project root (never commit this):
 
 ```
-PRIVATE_KEY=0xYOUR_DEPLOYER_PRIVATE_KEY
+BASE_TESTNET_RPC_URL=https://sepolia.base.org
+DEPLOYER_PRIVATE_KEY=0xYOUR_DEPLOYER_PRIVATE_KEY
+BASESCAN_API_KEY=YOUR_BASESCAN_API_KEY
 TREASURY_ADDRESS=0xYOUR_TREASURY_WALLET_ADDRESS
 ```
 
@@ -44,21 +46,16 @@ Confirm `.env` is in `.gitignore`:
 
 ### 2. Update `hardhat.config.js`
 
-Add the dotenv import and Base Sepolia network at the top and inside `networks`:
+Ensure your `hardhat.config.js` has the correct `baseSepolia` network:
 
 ```javascript
-require("dotenv").config();
-
-module.exports = {
-  solidity: "0.8.28",
   networks: {
-    baseTestnet: {
-      url: "https://sepolia.base.org",
-      accounts: [process.env.PRIVATE_KEY],
+    baseSepolia: {
+      url: process.env.BASE_TESTNET_RPC_URL || "",
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
       chainId: 84532,
     },
   },
-};
 ```
 
 ### 3. Fund the deployer wallet
@@ -110,7 +107,15 @@ module.exports = buildModule("AlexandriaModule", (m) => {
 });
 ```
 
-The `treasury` parameter is passed at deploy time (see below).
+Create a `parameters.json` file in `ignition/parameters.json` to manage your deployment variables:
+
+```json
+{
+  "AlexandriaModule": {
+    "treasury": "0xYOUR_TREASURY_ADDRESS"
+  }
+}
+```
 
 ---
 
@@ -119,16 +124,13 @@ The `treasury` parameter is passed at deploy time (see below).
 ### Local (test first)
 
 ```bash
-npx hardhat ignition deploy ./ignition/modules/Alexandria.js \
-  --parameters '{"AlexandriaModule": {"treasury": "0xYOUR_TREASURY_ADDRESS"}}'
+npx hardhat ignition deploy ./ignition/modules/Alexandria.js --parameters ./ignition/parameters.json
 ```
 
 ### Base Sepolia Testnet
 
 ```bash
-npx hardhat ignition deploy ./ignition/modules/Alexandria.js \
-  --network baseTestnet \
-  --parameters '{"AlexandriaModule": {"treasury": "0xYOUR_TREASURY_ADDRESS"}}'
+npx hardhat ignition deploy ./ignition/modules/Alexandria.js --network baseSepolia --parameters ./ignition/parameters.json
 ```
 
 Ignition saves all deployed addresses to `ignition/deployments/`. Record the five contract addresses — you need them for wiring.
@@ -144,7 +146,7 @@ You can run these via Hardhat console or write a one-off script.
 ### Open Hardhat console (testnet)
 
 ```bash
-npx hardhat console --network baseTestnet
+npx hardhat console --network baseSepolia
 ```
 
 Then paste each call below.
@@ -161,6 +163,9 @@ await library.setAuthorizedCaller("<STAKE_ADDRESS>", true);
 ```
 
 ### 3b. Authorize your backend to register uploads
+
+> **⚠ Deferrable — skip until backend is ready.**
+> The backend wallet address isn't known until the backend is deployed. Come back and run this single call once you have it.
 
 The backend calls `library.registerUpload()` after Arweave storage.
 
@@ -248,13 +253,13 @@ Verified source code lets users and auditors inspect the contracts on https://se
 
 ```bash
 # No constructor args
-npx hardhat verify --network baseTestnet <TOKEN_ADDRESS>
-npx hardhat verify --network baseTestnet <LIBRARY_ADDRESS>
+npx hardhat verify --network baseSepolia <TOKEN_ADDRESS>
+npx hardhat verify --network baseSepolia <LIBRARY_ADDRESS>
 
 # With constructor args
-npx hardhat verify --network baseTestnet <STAKE_ADDRESS> "<LIBRARY_ADDRESS>" "<TOKEN_ADDRESS>"
-npx hardhat verify --network baseTestnet <RENT_ADDRESS> "<LIBRARY_ADDRESS>" "<TOKEN_ADDRESS>"
-npx hardhat verify --network baseTestnet <PAYMENT_ADDRESS> "<LIBRARY_ADDRESS>" "<TOKEN_ADDRESS>" "<TREASURY_ADDRESS>"
+npx hardhat verify --network baseSepolia <STAKE_ADDRESS> "<LIBRARY_ADDRESS>" "<TOKEN_ADDRESS>"
+npx hardhat verify --network baseSepolia <RENT_ADDRESS> "<LIBRARY_ADDRESS>" "<TOKEN_ADDRESS>"
+npx hardhat verify --network baseSepolia <PAYMENT_ADDRESS> "<LIBRARY_ADDRESS>" "<TOKEN_ADDRESS>" "<TREASURY_ADDRESS>"
 ```
 
 ---
@@ -263,12 +268,12 @@ npx hardhat verify --network baseTestnet <PAYMENT_ADDRESS> "<LIBRARY_ADDRESS>" "
 
 | Contract           | Address |
 |--------------------|---------|
-| AlexandriaToken    |         |
-| AlexandriaLibrary  |         |
-| AlexandriaStake    |         |
-| AlexandriaRent     |         |
-| AlexandriaPayment  |         |
-| Treasury Wallet    |         |
+| AlexandriaToken    | 0x99C8Ab3c870AAcD75185Ee2B0c96C0Cfe85Fd605 |
+| AlexandriaLibrary  | 0x0b26AB8C632586E846DE87D29D665fd727bBe844 |
+| AlexandriaStake    | 0xe3027D298450695d9c4eD9A071D34e2921fc567C |
+| AlexandriaRent     | 0xe50AD653Ee690c818900091a4d69F22e484bD2cD |
+| AlexandriaPayment  | 0xa5118F666C9A3F6FF1a8342Cd2FfC84134c8b1f8 |
+| Treasury Wallet    | 0x5F47ecD28155790f1271df965373fD9aCEA643b9 (deployer) |
 
 ---
 
