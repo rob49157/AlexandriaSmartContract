@@ -8,8 +8,10 @@ const { buildModule } = require("@nomicfoundation/hardhat-ignition/modules");
 //   2. Distribute initial token allocations from deployer to treasury, team, etc.
 //   3. Transfer ownership to multisig before mainnet.
 //
-// Deploy to Base Testnet:
-//   npx hardhat ignition deploy ignition/modules/Alexandria.js --network baseTestnet
+// Deploy to Base Sepolia:
+//   npx hardhat ignition deploy ignition/modules/Alexandria.js --network baseSepolia --parameters ignition/parameters.json
+// Deploy to Robinhood Testnet:
+//   npx hardhat ignition deploy ignition/modules/Alexandria.js --network robinhoodTestnet --parameters ignition/parameters.json
 //
 // Verify contracts after deploy:
 //   npx hardhat verify --network baseTestnet <address>
@@ -26,8 +28,9 @@ module.exports = buildModule("Alexandria", (m) => {
   // 3. Stake — depends on library + token
   const stake = m.contract("AlexandriaStake", [library, token]);
 
-  // 4. Payment — depends on library + token; treasury = deployer wallet for PoC
-  const payment = m.contract("AlexandriaPayment", [library, token, deployer]);
+  // 4. Payment — depends on library + token; treasury is explicit deployment configuration
+  const treasury = m.getParameter("treasury", deployer);
+  const payment = m.contract("AlexandriaPayment", [library, token, treasury]);
 
   // 5. Rent — depends on library + token
   const rent = m.contract("AlexandriaRent", [library, token]);
