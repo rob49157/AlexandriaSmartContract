@@ -1,6 +1,10 @@
 # Alexandria Smart Contract Deployment Guide
 
-Target network: **Base Sepolia Testnet** (chain ID 84532)
+Supported networks:
+
+- **Base Sepolia Testnet** (chain ID 84532)
+- **Robinhood Chain Testnet** (chain ID 46630)
+- **Robinhood Chain Mainnet** (chain ID 4663)
 
 ---
 
@@ -33,6 +37,8 @@ Create a `.env` file in the project root (never commit this):
 
 ```
 BASE_TESTNET_RPC_URL=https://sepolia.base.org
+ROBINHOOD_TESTNET_RPC_URL=https://rpc.testnet.chain.robinhood.com
+ROBINHOOD_RPC_URL=https://rpc.mainnet.chain.robinhood.com
 DEPLOYER_PRIVATE_KEY=0xYOUR_DEPLOYER_PRIVATE_KEY
 BASESCAN_API_KEY=YOUR_BASESCAN_API_KEY
 TREASURY_ADDRESS=0xYOUR_TREASURY_WALLET_ADDRESS
@@ -55,12 +61,24 @@ Ensure your `hardhat.config.js` has the correct `baseSepolia` network:
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
       chainId: 84532,
     },
+    robinhoodTestnet: {
+      url: process.env.ROBINHOOD_TESTNET_RPC_URL || "",
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+      chainId: 46630,
+    },
+    robinhood: {
+      url: process.env.ROBINHOOD_RPC_URL || "",
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+      chainId: 4663,
+    },
   },
 ```
 
 ### 3. Fund the deployer wallet
 
-Get Base Sepolia ETH from the official faucet:
+Get testnet ETH from the relevant faucet or network provider. Robinhood Chain uses ETH as its native gas token.
+
+Base Sepolia faucets:
 - https://www.coinbase.com/faucets/base-ethereum-goerli-faucet
 - https://faucet.quicknode.com/base/sepolia
 
@@ -91,8 +109,8 @@ Create `ignition/modules/Alexandria.js`:
 ```javascript
 const { buildModule } = require("@nomicfoundation/hardhat-ignition/modules");
 
-module.exports = buildModule("AlexandriaModule", (m) => {
-  const treasury = m.getParameter("treasury");
+module.exports = buildModule("Alexandria", (m) => {
+  const treasury = m.getParameter("treasury", m.getAccount(0));
 
   // Tier 1 — no dependencies
   const token   = m.contract("AlexandriaToken",   []);
@@ -111,7 +129,7 @@ Create a `parameters.json` file in `ignition/parameters.json` to manage your dep
 
 ```json
 {
-  "AlexandriaModule": {
+  "Alexandria": {
     "treasury": "0xYOUR_TREASURY_ADDRESS"
   }
 }
@@ -131,6 +149,20 @@ npx hardhat ignition deploy ./ignition/modules/Alexandria.js --parameters ./igni
 
 ```bash
 npx hardhat ignition deploy ./ignition/modules/Alexandria.js --network baseSepolia --parameters ./ignition/parameters.json
+```
+
+### Robinhood Chain Testnet
+
+```bash
+npx hardhat ignition deploy ./ignition/modules/Alexandria.js --network robinhoodTestnet --parameters ./ignition/parameters.json
+```
+
+### Robinhood Chain Mainnet
+
+Deploy to mainnet only after completing the testnet deployment and operational checks:
+
+```bash
+npx hardhat ignition deploy ./ignition/modules/Alexandria.js --network robinhood --parameters ./ignition/parameters.json
 ```
 
 Ignition saves all deployed addresses to `ignition/deployments/`. Record the five contract addresses — you need them for wiring.
@@ -215,6 +247,19 @@ await payment.setAuthorizedCaller("<STAKE_ADDRESS>", true);
 const rent = await ethers.getContractAt("AlexandriaRent", "<RENT_ADDRESS>");
 await rent.setPaymentContract("<PAYMENT_ADDRESS>");
 ```
+
+Use `--network robinhoodTestnet` or `--network robinhood` for the corresponding Robinhood deployment.
+
+## Contract Verification
+
+Robinhood Chain uses Blockscout verification. The custom verification endpoints are already configured in `hardhat.config.js`:
+
+```bash
+npx hardhat verify --network robinhoodTestnet <address> <constructor-arguments>
+npx hardhat verify --network robinhood <address> <constructor-arguments>
+```
+
+For the five-contract deployment, use the constructor arguments from the deployment output when verifying `AlexandriaStake`, `AlexandriaPayment`, and `AlexandriaRent`. `AlexandriaToken` and `AlexandriaLibrary` have no constructor arguments.
 
 ---
 
